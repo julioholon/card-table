@@ -7,6 +7,7 @@
 
 import type { Card, StandardCard, TarotCard } from './types.js'
 import type { PlacedDeck, LooseCard, Position } from '../store/tableStore.js'
+import { getProgress } from './flipAnimation.js'
 
 // ── Constants ────────────────────────────────────────────────────────
 const CARD_W = 120
@@ -358,6 +359,41 @@ export function drawCard(
   }
 }
 
+// ── Public: draw a single card with flip animation ────────────────────
+export function drawCardWithFlip(
+  ctx: CanvasRenderingContext2D,
+  card: Card,
+  x: number, y: number,
+  faceUp: boolean,
+  flipProgress: number | null,
+) {
+  if (flipProgress !== null) {
+    // Animate: scaleX goes from 1 → 0 → 1, face flips at midpoint
+    const scaleX = Math.cos(flipProgress * Math.PI)
+    const showingFace = scaleX >= 0 ? faceUp : !faceUp
+
+    ctx.save()
+    ctx.translate(x + CARD_W / 2, y + CARD_H / 2)
+    ctx.scale(scaleX, 1)
+    ctx.translate(-(x + CARD_W / 2), -(y + CARD_H / 2))
+
+    // Draw the appropriate face
+    if (showingFace) {
+      if (card.kind === 'standard') {
+        drawStandardCard(ctx, card, x, y)
+      } else {
+        drawTarotCard(ctx, card, x, y)
+      }
+    } else {
+      drawCardBack(ctx, x, y)
+    }
+
+    ctx.restore()
+  } else {
+    drawCard(ctx, card, x, y, faceUp)
+  }
+}
+
 // ── Public: draw a placed deck (stacked cards) ───────────────────────
 export function drawDeck(
   ctx: CanvasRenderingContext2D,
@@ -367,67 +403,92 @@ export function drawDeck(
   const count = deckObj.cards.length
 
   // Draw stack effect: offset cards from bottom to top
-  const maxVisible = Math.min(count, 12) // cap visible stack height
+  const maxVisible = Math.min(count, 12)
   const offsetStep = 3
 
-  // Drop shadow under the entire stack
+  // Ambient shadow under the entire stack — soft and wide
   ctx.save()
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
-  ctx.shadowBlur = 12
-  ctx.shadowOffsetX = 4
-  ctx.shadowOffsetY = 6
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.45)'
+  ctx.shadowBlur = 18
+  ctx.shadowOffsetX = 3
+  ctx.shadowOffsetY = 8
   drawRoundRect(ctx, position.x, position.y, CARD_W, CARD_H, RADIUS)
   ctx.fillStyle = 'rgba(0, 0, 0, 0.01)'
   ctx.fill()
   ctx.restore()
 
+  // Draw stacked cards from bottom to top
   for (let i = maxVisible - 1; i >= 0; i--) {
     const sx = position.x + i * offsetStep
     const sy = position.y - i * offsetStep
+
     if (i === 0) {
-      // Top card: honour faceUp flag
+      // Top card: honour faceUp flag, with subtle lift shadow
+      ctx.save()
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'
+      ctx.shadowBlur = 6
+      ctx.shadowOffsetX = 1
+      ctx.shadowOffsetY = 2
       drawCard(ctx, deckObj.cards[0]!, sx, sy, faceUp)
+      ctx.restore()
     } else {
       // Rest of stack: always face-back
       drawCardBack(ctx, sx, sy)
 
-      // Edge highlight on the right side to show card thickness
-      const edgeX = sx + CARD_W - 1
+      // Right edge face — simulated card thickness with gradient
+      const edgeX = sx + CARD_W
       const edgeTop = sy + RADIUS
       const edgeBot = sy + CARD_H - RADIUS
-      ctx.strokeStyle = 'rgba(80, 80, 120, 0.25)'
-      ctx.lineWidth = 1
+      const edgeGrad = ctx.createLinearGradient(edgeX - 2, 0, edgeX + 1, 0)
+      edgeGrad.addColorStop(0, 'rgba(60, 60, 100, 0)')
+      edgeGrad.addColorStop(0.4, 'rgba(70, 70, 110, 0.3)')
+      edgeGrad.addColorStop(1, 'rgba(50, 50, 85, 0.15)')
+      ctx.strokeStyle = edgeGrad
+      ctx.lineWidth = 1.5
       ctx.beginPath()
-      ctx.moveTo(edgeX, edgeTop)
-      ctx.lineTo(edgeX, edgeBot)
+      ctx.moveTo(edgeX - 0.5, edgeTop)
+      ctx.lineTo(edgeX - 0.5, edgeBot)
       ctx.stroke()
 
-      // Bottom edge
-      const bottomY = sy + CARD_H - 1
-      ctx.strokeStyle = 'rgba(60, 60, 100, 0.2)'
+      // Bottom edge face
+      const bottomY = sy + CARD_H
+      const bottomGrad = ctx.createLinearGradient(0, bottomY - 2, 0, bottomY + 1)
+      bottomGrad.addColorStop(0, 'rgba(50, 50, 85, 0)')
+      bottomGrad.addColorStop(0.4, 'rgba(60, 60, 100, 0.25)')
+      bottomGrad.addColorStop(1, 'rgba(40, 40, 75, 0.12)')
+      ctx.strokeStyle = bottomGrad
+      ctx.lineWidth = 1.5
       ctx.beginPath()
-      ctx.moveTo(sx + RADIUS, bottomY)
-      ctx.lineTo(sx + CARD_W - RADIUS, bottomY)
+      ctx.moveTo(sx + RADIUS, bottomY - 0.5)
+      ctx.lineTo(sx + CARD_W - RADIUS, bottomY - 0.5)
+      ctx.stroke()
+
+      // Subtle separator line between stacked cards
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)'
+      ctx.lineWidth = 0.5
+      ctx.beginPath()
+      ctx.moveTo(sx + 2, sy)
+      ctx.lineTo(sx + CARD_W - 2, sy)
       ctx.stroke()
     }
   }
 
-  // Stack count badge — pill shape with subtle shadow
+  // Stack count badge — pill shape with refined shadow
   if (count > 1) {
-    const badgeX = position.x + CARD_W + 6
-    const badgeY = position.y + CARD_H - 22
-    const badgeW = Math.max(28, 10 + `${count}`.length * 7)
-    const badgeH = 20
+    const badgeX = position.x + CARD_W + 8
+    const badgeY = position.y + CARD_H - 24
+    const badgeW = Math.max(28, 12 + `${count}`.length * 7)
+    const badgeH = 22
     const badgeR = badgeH / 2
 
     // Badge shadow
     ctx.save()
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)'
-    ctx.shadowBlur = 4
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.35)'
+    ctx.shadowBlur = 6
     ctx.shadowOffsetX = 1
     ctx.shadowOffsetY = 2
     drawRoundRect(ctx, badgeX, badgeY, badgeW, badgeH, badgeR)
-    ctx.fillStyle = '#21262d'
+    ctx.fillStyle = '#1c2128'
     ctx.fill()
     ctx.restore()
 
@@ -442,7 +503,7 @@ export function drawDeck(
     ctx.font = 'bold 11px system-ui, sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText(`${count}`, badgeX + badgeW / 2, badgeY + badgeH / 2)
+    ctx.fillText(`${count}`, badgeX + badgeW / 2, badgeY + badgeH / 2 + 0.5)
   }
 }
 

@@ -6,3 +6,42 @@
   width: 100vw;
   height: 100vh;
 }
+
+.context-menu {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  min-width: 180px;
+  padding: 4px 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+}
+
+.context-menu-item {
+  display: block;
+  width: 100%;
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  color: #c9d1d9;
+  text-align: left;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  transition: background 0.15s ease;
+}
+
+.context-menu-item:hover:not(:disabled) {
+  background: #1f6feb;
+  color: #ffffff;
+}
+
+.context-menu-item:disabled {
+  color: #484f58;
+  cursor: default;
+}
+
+.context-menu-item + .context-menu-item {
+  border-top: 1px solid #21262d;
+}

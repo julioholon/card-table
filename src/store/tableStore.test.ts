@@ -11,7 +11,7 @@ function resetStore() {
     dragging: { active: false, kind: null, id: null, offset: { x: 0, y: 0 } },
     contextMenu: { open: false, canvasPos: { x: 0, y: 0 }, deckId: null },
   })
-  useTableStore.persist.clearStorage()
+  localStorage.removeItem(STORAGE_KEY)
 }
 
 beforeEach(resetStore)
@@ -257,7 +257,7 @@ describe('localStorage persistence', () => {
     addDeck(createStandardDeck())
     addLooseCard(createStandardDeck().cards[0])
     expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull()
-    useTableStore.persist.clearStorage()
+    localStorage.removeItem(STORAGE_KEY)
     useTableStore.persist.rehydrate()
     const state = useTableStore.getState()
     expect(state.decks).toHaveLength(0)

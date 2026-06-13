@@ -3,6 +3,7 @@ import { useTableStore } from './store/tableStore.js'
 import { drawDeck, drawLooseCard } from './cards/render.js'
 import { createStandardDeck } from './cards/decks.js'
 import { startFlip, hasActive, pruneCompleted } from './cards/flipAnimation.js'
+import { ContextMenu } from './components/ContextMenu.js'
 import type { PlacedDeck } from './store/tableStore.js'
 import './App.css'
 
@@ -20,6 +21,7 @@ function App() {
   const shuffleDeck = useTableStore((s) => s.shuffleDeck)
   const startShuffleAnim = useTableStore((s) => s.startShuffleAnim)
   const clearShuffleAnim = useTableStore((s) => s.clearShuffleAnim)
+  const openContextMenu = useTableStore((s) => s.openContextMenu)
 
   // Seed a standard deck on first render
   useEffect(() => {
@@ -87,7 +89,7 @@ function App() {
 
     // Draw all decks (stacked cards)
     for (const deck of state.decks) {
-      drawDeck(ctx, deck, state.shuffleAnim)
+      drawDeck(ctx, deck)
     }
 
     // Draw all loose cards
@@ -198,7 +200,33 @@ function App() {
     return () => canvas.removeEventListener('dblclick', handleDoubleClick)
   }, [handleDoubleClick])
 
-  return <canvas ref={canvasRef} className="board-canvas" />
+  // Right-click context menu handler
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault()
+      const rect = canvas.getBoundingClientRect()
+      const cx = e.clientX - rect.left
+      const cy = e.clientY - rect.top
+      const deck = findDeckAt(cx, cy)
+      openContextMenu(
+        { x: e.clientX, y: e.clientY },
+        deck ? deck.id : null,
+      )
+    }
+
+    canvas.addEventListener('contextmenu', handleContextMenu)
+    return () => canvas.removeEventListener('contextmenu', handleContextMenu)
+  }, [findDeckAt, openContextMenu])
+
+  return (
+    <>
+      <canvas ref={canvasRef} className="board-canvas" />
+      <ContextMenu />
+    </>
+  )
 }
 
 export default App

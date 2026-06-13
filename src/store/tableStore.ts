@@ -57,24 +57,31 @@ export interface TableState {
   readonly contextMenu: ContextMenuState
   readonly shuffleAnim: ShuffleAnimState | null
 
+  // Deck actions
   addDeck: (deck: Deck, position?: Position) => void
   removeDeck: (deckId: string) => void
-  addLooseCard: (card: Card, position?: Position) => void
   moveDeck: (deckId: string, position: Position) => void
+  flipDeck: (deckId: string) => void
+  shuffleDeck: (deckId: string) => void
+  cutDeck: (deckId: string) => void
+  duplicateDeck: (deckId: string) => void
+
+  // Loose card actions
+  addLooseCard: (card: Card, position?: Position) => void
   moveCard: (cardId: string, position: Position) => void
+  flipCard: (cardId: string) => void
+
+  // Drag actions
   startDrag: (kind: 'deck' | 'card', id: string, offset: Position) => void
   updateDrag: (offset: Position) => void
   endDrag: () => void
 
+  // Context menu actions
   openContextMenu: (canvasPos: Position, deckId: string | null) => void
   closeContextMenu: () => void
   collectAllCards: (deckId: string) => void
-  cutDeck: (deckId: string) => void
-  duplicateDeck: (deckId: string) => void
 
-  flipDeck: (deckId: string) => void
-  flipCard: (cardId: string) => void
-  shuffleDeck: (deckId: string) => void
+  // Shuffle animation
   startShuffleAnim: (deckId: string, cardCount: number) => void
   clearShuffleAnim: () => void
 }
@@ -246,8 +253,7 @@ export const useTableStore = create<TableState>()(
               decks: [...state.decks, newDeck],
               contextMenu: DEFAULT_CONTEXT_MENU,
             }
-          })
-        },
+          })),
 
         flipDeck: (deckId) =>
           set((state) => ({
@@ -270,8 +276,10 @@ export const useTableStore = create<TableState>()(
             const cards = [...deck.deck.cards]
             // Fisher-Yates shuffle
             for (let i = cards.length - 1; i > 0; i--) {
-              const j = Math.floor(Math.random() * (i + 1));
-              [cards[i], cards[j]] = [cards[j], cards[i]]
+              const j = Math.floor(Math.random() * (i + 1))
+              const tmp = cards[i]!
+              cards[i] = cards[j]!
+              cards[j] = tmp
             }
             return {
               decks: state.decks.map((d) =>
@@ -300,6 +308,22 @@ export const useTableStore = create<TableState>()(
           decks: [...state.decks],
           looseCards: [...state.looseCards],
         }),
+        merge: (persisted: unknown, current: TableState): TableState => {
+          // If storage was cleared (null), reset to empty state
+          if (!persisted || typeof persisted !== 'object') {
+            return {
+              ...current,
+              decks: [],
+              looseCards: [],
+            }
+          }
+          const p = persisted as PersistedState
+          return {
+            ...current,
+            decks: p.decks ?? [],
+            looseCards: p.looseCards ?? [],
+          }
+        },
       },
     ),
     { name: 'CardTable' },
