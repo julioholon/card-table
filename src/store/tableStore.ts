@@ -1,8 +1,11 @@
 // src/store/tableStore.ts
 
 import { create } from 'zustand'
-import { devtools } from 'zustand/middleware'
+import { devtools, persist } from 'zustand/middleware'
 import { Card, Deck } from '../cards/types.js'
+
+// ── Persistence key ────────────────────────────────────────────────
+export const STORAGE_KEY = 'card-table-state'
 
 // ── Position on the 2-D card table ────────────────────────────────
 export interface Position {
@@ -32,6 +35,12 @@ export interface DragState {
   readonly kind: 'deck' | 'card' | null
   readonly id: string | null          // PlacedDeck.id or LooseCard.id
   readonly offset: Position           // cursor offset from object origin
+}
+
+// ── Persisted slice (everything except transient drag + actions) ──
+interface PersistedState {
+  decks: PlacedDeck[]
+  looseCards: LooseCard[]
 }
 
 // ── Store shape ────────────────────────────────────────────────────
@@ -67,59 +76,68 @@ const DEFAULT_DRAG: DragState = {
 // ── Store ──────────────────────────────────────────────────────────
 export const useTableStore = create<TableState>()(
   devtools(
-    (set) => ({
-      decks: [],
-      looseCards: [],
-      dragging: DEFAULT_DRAG,
+    persist(
+      (set) => ({
+        decks: [],
+        looseCards: [],
+        dragging: DEFAULT_DRAG,
 
-      addDeck: (deck, position = { x: 100, y: 100 }) =>
-        set((state) => ({
-          decks: [
-            ...state.decks,
-            { id: uid('deck'), deck, position, faceUp: false },
-          ],
-        })),
+        addDeck: (deck, position = { x: 100, y: 100 }) =>
+          set((state) => ({
+            decks: [
+              ...state.decks,
+              { id: uid('deck'), deck, position, faceUp: false },
+            ],
+          })),
 
-      removeDeck: (deckId) =>
-        set((state) => ({
-          decks: state.decks.filter((d) => d.id !== deckId),
-        })),
+        removeDeck: (deckId) =>
+          set((state) => ({
+            decks: state.decks.filter((d) => d.id !== deckId),
+          })),
 
-      addLooseCard: (card, position = { x: 200, y: 200 }) =>
-        set((state) => ({
-          looseCards: [
-            ...state.looseCards,
-            { id: uid('card'), card, position, faceUp: true },
-          ],
-        })),
+        addLooseCard: (card, position = { x: 200, y: 200 }) =>
+          set((state) => ({
+            looseCards: [
+              ...state.looseCards,
+              { id: uid('card'), card, position, faceUp: true },
+            ],
+          })),
 
-      moveDeck: (deckId, position) =>
-        set((state) => ({
-          decks: state.decks.map((d) =>
-            d.id === deckId ? { ...d, position } : d,
-          ),
-        })),
+        moveDeck: (deckId, position) =>
+          set((state) => ({
+            decks: state.decks.map((d) =>
+              d.id === deckId ? { ...d, position } : d,
+            ),
+          })),
 
-      moveCard: (cardId, position) =>
-        set((state) => ({
-          looseCards: state.looseCards.map((c) =>
-            c.id === cardId ? { ...c, position } : c,
-          ),
-        })),
+        moveCard: (cardId, position) =>
+          set((state) => ({
+            looseCards: state.looseCards.map((c) =>
+              c.id === cardId ? { ...c, position } : c,
+            ),
+          })),
 
-      startDrag: (kind, id, offset) =>
-        set({
-          dragging: { active: true, kind, id, offset },
+        startDrag: (kind, id, offset) =>
+          set({
+            dragging: { active: true, kind, id, offset },
+          }),
+
+        updateDrag: (offset) =>
+          set((state) => ({
+            dragging: { ...state.dragging, offset },
+          })),
+
+        endDrag: () =>
+          set({ dragging: DEFAULT_DRAG }),
+      }),
+      {
+        name: STORAGE_KEY,
+        partialize: (state): PersistedState => ({
+          decks: [...state.decks],
+          looseCards: [...state.looseCards],
         }),
-
-      updateDrag: (offset) =>
-        set((state) => ({
-          dragging: { ...state.dragging, offset },
-        })),
-
-      endDrag: () =>
-        set({ dragging: DEFAULT_DRAG }),
-    }),
+      },
+    ),
     { name: 'CardTable' },
   ),
 )

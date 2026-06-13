@@ -1,8 +1,23 @@
 import { useRef, useEffect } from 'react'
+import { useTableStore } from './store/tableStore.js'
+import { drawDeck, drawLooseCard } from './cards/render.js'
+import { createStandardDeck } from './cards/decks.js'
 import './App.css'
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const decks = useTableStore((s) => s.decks)
+  const looseCards = useTableStore((s) => s.looseCards)
+  const addDeck = useTableStore((s) => s.addDeck)
+
+  // Seed a standard deck on first render
+  useEffect(() => {
+    const store = useTableStore.getState()
+    if (store.decks.length === 0 && store.looseCards.length === 0) {
+      const standard = createStandardDeck()
+      addDeck(standard, { x: 120, y: 100 })
+    }
+  }, [addDeck])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -22,33 +37,47 @@ function App() {
       ctx.fillStyle = '#0d1117'
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-      // Placeholder rectangle
-      const rectW = 320
-      const rectH = 200
-      const x = (canvas.width - rectW) / 2
-      const y = (canvas.height - rectH) / 2
+      // Subtle grid
+      ctx.strokeStyle = '#161b22'
+      ctx.lineWidth = 1
+      for (let x = 0; x < canvas.width; x += 40) {
+        ctx.beginPath()
+        ctx.moveTo(x, 0)
+        ctx.lineTo(x, canvas.height)
+        ctx.stroke()
+      }
+      for (let y = 0; y < canvas.height; y += 40) {
+        ctx.beginPath()
+        ctx.moveTo(0, y)
+        ctx.lineTo(canvas.width, y)
+        ctx.stroke()
+      }
 
-      ctx.fillStyle = '#161b22'
-      ctx.strokeStyle = '#30363d'
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      ctx.roundRect(x, y, rectW, rectH, 12)
-      ctx.fill()
-      ctx.stroke()
+      // Draw all decks (stacked cards)
+      for (const deck of decks) {
+        drawDeck(ctx, deck)
+      }
 
-      // Placeholder text
-      ctx.fillStyle = '#8b949e'
-      ctx.font = '16px system-ui, sans-serif'
-      ctx.textAlign = 'center'
-      ctx.fillText('Card Table', canvas.width / 2, canvas.height / 2 - 10)
-      ctx.font = '13px system-ui, sans-serif'
-      ctx.fillText('Scaffold ready', canvas.width / 2, canvas.height / 2 + 16)
+      // Draw all loose cards
+      for (const lc of looseCards) {
+        drawLooseCard(ctx, lc)
+      }
     }
 
+    // Re-render whenever store state changes
+    const unsub = useTableStore.subscribe(() => {
+      draw()
+    })
+
     resize()
+    draw()
     window.addEventListener('resize', resize)
-    return () => window.removeEventListener('resize', resize)
-  }, [])
+
+    return () => {
+      unsub()
+      window.removeEventListener('resize', resize)
+    }
+  }, [decks, looseCards])
 
   return <canvas ref={canvasRef} className="board-canvas" />
 }
