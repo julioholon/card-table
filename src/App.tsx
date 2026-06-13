@@ -18,6 +18,7 @@ const LONG_PRESS_MOVE_THRESHOLD = 10
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const lastPointerDownRef = useRef<{ x: number; y: number } | null>(null)
   const hoverTargetRef = useDragAndDrop(canvasRef)
   const hoverTarget = hoverTargetRef?.current
   const dragging = useTableStore((s) => s.dragging)
@@ -229,8 +230,26 @@ function App() {
     const canvas = canvasRef.current
     if (!canvas) return
 
+    const handlePointerDown = (e: MouseEvent | TouchEvent) => {
+      const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX
+      const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY
+      lastPointerDownRef.current = { x: clientX, y: clientY }
+    }
+
     const handleClick = (e: MouseEvent) => {
-      // Don't process clicks while dragging
+      // Prevent flip if this "click" was actually the end of a drag
+      if (lastPointerDownRef.current) {
+        const dx = e.clientX - lastPointerDownRef.current.x
+        const dy = e.clientY - lastPointerDownRef.current.y
+        const dist = Math.hypot(dx, dy)
+        lastPointerDownRef.current = null // reset
+        
+        if (dist > 5) {
+          return // It was a drag, ignore the click event
+        }
+      }
+
+      // Don't process clicks while dragging (fallback)
       if (dragging.active) return
 
       const rect = canvas.getBoundingClientRect()
@@ -254,8 +273,14 @@ function App() {
       // Clicking on a deck does nothing (decks are manipulated via drag/drop or context menu)
     }
 
+    canvas.addEventListener('mousedown', handlePointerDown)
+    canvas.addEventListener('touchstart', handlePointerDown, { passive: true })
     canvas.addEventListener('click', handleClick)
-    return () => canvas.removeEventListener('click', handleClick)
+    return () => {
+      canvas.removeEventListener('mousedown', handlePointerDown)
+      canvas.removeEventListener('touchstart', handlePointerDown)
+      canvas.removeEventListener('click', handleClick)
+    }
   }, [flipDeck, flipCard, ensureAnimating, dragging.active])
 
   // Double-click listener for shuffle
