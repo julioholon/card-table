@@ -5,6 +5,8 @@
   left: 0;
   width: 100vw;
   height: 100vh;
+  /* Prevent default touch actions (scroll, zoom) on the canvas */
+  touch-action: none;
 }
 
 .context-menu {
@@ -30,6 +32,9 @@
   font-size: 13px;
   font-family: inherit;
   transition: background 0.15s ease;
+  /* Ensure minimum 44px touch target height */
+  min-height: 44px;
+  line-height: 28px;
 }
 
 .context-menu-item:hover:not(:disabled) {
@@ -44,4 +49,33 @@
 
 .context-menu-item + .context-menu-item {
   border-top: 1px solid #21262d;
+}
+
+/* ── Responsive: small screens ─────────────────────────────────── */
+@media (max-width: 768px) {
+  .context-menu {
+    min-width: 160px;
+    font-size: 14px;
+  }
+
+  .context-menu-item {
+    padding: 12px 16px;
+    font-size: 14px;
+    min-height: 48px;
+    line-height: 24px;
+  }
+}
+
+/* ── Responsive: very small screens (portrait phones) ──────────── */
+@media (max-width: 480px) {
+  .context-menu {
+    min-width: 140px;
+    border-radius: 6px;
+  }
+
+  .context-menu-item {
+    padding: 14px 12px;
+    font-size: 15px;
+    min-height: 48px;
+  }
 }

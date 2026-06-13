@@ -447,3 +447,94 @@ describe('duplicateDeck', () => {
     expect(useTableStore.getState().contextMenu.open).toBe(false)
   })
 })
+
+describe('drawFromDeck', () => {
+  it('does nothing when deckId does not exist', () => {
+    const { drawFromDeck } = useTableStore.getState()
+    const cardsBefore = useTableStore.getState().looseCards
+    drawFromDeck('nonexistent', { x: 300, y: 300 })
+    expect(useTableStore.getState().looseCards).toBe(cardsBefore)
+    expect(useTableStore.getState().decks).toHaveLength(0)
+  })
+
+  it('does nothing when deck is empty', () => {
+    const { addDeck, drawFromDeck } = useTableStore.getState()
+    addDeck({ name: 'empty', cards: [] }, { x: 100, y: 100 })
+    const deckId = useTableStore.getState().decks[0].id
+    drawFromDeck(deckId, { x: 300, y: 300 })
+    const state = useTableStore.getState()
+    expect(state.looseCards).toHaveLength(0)
+    expect(state.decks[0].deck.cards).toHaveLength(0)
+  })
+
+  it('draws the top card from the deck into a loose card', () => {
+    const deck = createStandardDeck()
+    const { addDeck, drawFromDeck } = useTableStore.getState()
+    addDeck(deck, { x: 100, y: 100 })
+    const deckId = useTableStore.getState().decks[0].id
+    const topCard = deck.cards[0]
+    drawFromDeck(deckId, { x: 300, y: 400 })
+    const state = useTableStore.getState()
+    expect(state.looseCards).toHaveLength(1)
+    expect(state.looseCards[0].card).toBe(topCard)
+    expect(state.looseCards[0].position).toEqual({ x: 300, y: 400 })
+    expect(state.looseCards[0].faceUp).toBe(true)
+  })
+
+  it('removes the top card from the deck', () => {
+    const deck = createStandardDeck()
+    const { addDeck, drawFromDeck } = useTableStore.getState()
+    addDeck(deck, { x: 100, y: 100 })
+    const deckId = useTableStore.getState().decks[0].id
+    drawFromDeck(deckId, { x: 300, y: 300 })
+    expect(useTableStore.getState().decks[0].deck.cards).toHaveLength(51)
+  })
+
+  it('does not affect other decks', () => {
+    const { addDeck, drawFromDeck } = useTableStore.getState()
+    addDeck(createStandardDeck(), { x: 100, y: 100 })
+    addDeck(createStandardDeck(), { x: 500, y: 500 })
+    const decks = useTableStore.getState().decks
+    drawFromDeck(decks[0].id, { x: 300, y: 300 })
+    expect(useTableStore.getState().decks[1].deck.cards).toHaveLength(52)
+  })
+
+  it('can draw multiple cards sequentially', () => {
+    const deck = createStandardDeck()
+    const { addDeck, drawFromDeck } = useTableStore.getState()
+    addDeck(deck, { x: 100, y: 100 })
+    const deckId = useTableStore.getState().decks[0].id
+    drawFromDeck(deckId, { x: 200, y: 200 })
+    drawFromDeck(deckId, { x: 300, y: 300 })
+    drawFromDeck(deckId, { x: 400, y: 400 })
+    const state = useTableStore.getState()
+    expect(state.looseCards).toHaveLength(3)
+    expect(state.decks[0].deck.cards).toHaveLength(49)
+    // Each drawn card should be different (sequential from top)
+    expect(state.looseCards[0].card).toBe(deck.cards[0])
+    expect(state.looseCards[1].card).toBe(deck.cards[1])
+    expect(state.looseCards[2].card).toBe(deck.cards[2])
+  })
+
+  it('loose card appears at drop position', () => {
+    const deck = createStandardDeck()
+    const { addDeck, drawFromDeck } = useTableStore.getState()
+    addDeck(deck, { x: 100, y: 100 })
+    const deckId = useTableStore.getState().decks[0].id
+    drawFromDeck(deckId, { x: 777, y: 888 })
+    const state = useTableStore.getState()
+    expect(state.looseCards[0].position).toEqual({ x: 777, y: 888 })
+  })
+
+  it('drawing from empty deck after exhausting all cards does nothing', () => {
+    const { addDeck, drawFromDeck } = useTableStore.getState()
+    addDeck({ name: 'single', cards: [createStandardDeck().cards[0]] }, { x: 100, y: 100 })
+    const deckId = useTableStore.getState().decks[0].id
+    drawFromDeck(deckId, { x: 200, y: 200 })
+    expect(useTableStore.getState().looseCards).toHaveLength(1)
+    expect(useTableStore.getState().decks[0].deck.cards).toHaveLength(0)
+    // Deck is now empty — drawing again should be a no-op
+    drawFromDeck(deckId, { x: 300, y: 300 })
+    expect(useTableStore.getState().looseCards).toHaveLength(1)
+  })
+})

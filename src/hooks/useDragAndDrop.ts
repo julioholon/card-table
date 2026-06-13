@@ -5,6 +5,10 @@
 // loose cards use their own rect). On mousedown over a target, calls
 // store.startDrag; on mousemove while dragging, moves the object; on
 // mouseup, commits the final position via store.moveDeck / moveCard.
+//
+// Shift+drag on a deck draws a card from the top of the deck instead of
+// moving the deck. On mouseup, calls store.drawFromDeck with the drop
+// position.
 
 import { useEffect, useRef } from 'react'
 import { useTableStore } from '../store/tableStore.js'
@@ -76,6 +80,11 @@ export function useDragAndDrop(canvasRef: React.RefObject<HTMLCanvasElement | nu
   const moveDeck = useTableStore((s) => s.moveDeck)
   const moveCard = useTableStore((s) => s.moveCard)
   const endDrag = useTableStore((s) => s.endDrag)
+  const drawFromDeck = useTableStore((s) => s.drawFromDeck)
+
+  // Track whether the current drag is a draw-from-deck operation
+  const isDrawDragRef = useRef(false)
+  const drawDeckIdRef = useRef<string | null>(null)
 
   // Track the last hit target for drop-zone highlighting
   const hoverTargetRef = useRef<HitTarget | null>(null)
@@ -93,6 +102,16 @@ export function useDragAndDrop(canvasRef: React.RefObject<HTMLCanvasElement | nu
       const { x, y } = getPos(e)
       const target = hitTest(decks, looseCards, x, y)
       if (!target) return
+
+      // Shift+drag on a deck = draw a card from it
+      if (target.kind === 'deck' && e.shiftKey) {
+        const d = decks.find((d) => d.id === target.id)
+        if (!d) return
+        if (d.deck.cards.length === 0) return // cannot draw from empty deck
+        isDrawDragRef.current = true
+        drawDeckIdRef.current = target.id
+        return
+      }
 
       // Calculate offset from object origin to cursor
       let objX: number, objY: number
@@ -114,6 +133,12 @@ export function useDragAndDrop(canvasRef: React.RefObject<HTMLCanvasElement | nu
     const onMouseMove = (e: MouseEvent) => {
       const { x, y } = getPos(e)
 
+      if (isDrawDragRef.current) {
+        // During a draw drag, no object moves — just track for hover highlight
+        hoverTargetRef.current = hitTest(decks, looseCards, x, y)
+        return
+      }
+
       if (dragging.active && dragging.id) {
         // Move the dragged object
         const newX = x + dragging.offset.x
@@ -129,8 +154,14 @@ export function useDragAndDrop(canvasRef: React.RefObject<HTMLCanvasElement | nu
       hoverTargetRef.current = hitTest(decks, looseCards, x, y)
     }
 
-    const onMouseUp = () => {
-      if (dragging.active) {
+    const onMouseUp = (e: MouseEvent) => {
+      if (isDrawDragRef.current && drawDeckIdRef.current) {
+        // Draw a card from the deck at the drop position
+        const { x, y } = getPos(e)
+        drawFromDeck(drawDeckIdRef.current, { x, y })
+        isDrawDragRef.current = false
+        drawDeckIdRef.current = null
+      } else if (dragging.active) {
         endDrag()
       }
       hoverTargetRef.current = null
@@ -147,7 +178,7 @@ export function useDragAndDrop(canvasRef: React.RefObject<HTMLCanvasElement | nu
       canvas.removeEventListener('mouseup', onMouseUp)
       canvas.removeEventListener('mouseleave', onMouseUp)
     }
-  }, [canvasRef, dragging, decks, looseCards, startDrag, moveDeck, moveCard, endDrag])
+  }, [canvasRef, dragging, decks, looseCards, startDrag, moveDeck, moveCard, endDrag, drawFromDeck])
 
   return hoverTargetRef
 }

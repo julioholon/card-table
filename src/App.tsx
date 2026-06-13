@@ -11,6 +11,11 @@ import './App.css'
 const CARD_W = 120
 const CARD_H = 170
 
+// Long-press duration for touch context menu (ms)
+const LONG_PRESS_MS = 500
+// Movement threshold to cancel long-press (px)
+const LONG_PRESS_MOVE_THRESHOLD = 10
+
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const { hoverTarget } = useDragAndDrop(canvasRef)
@@ -22,6 +27,12 @@ function App() {
   const shuffleDeck = useTableStore((s) => s.shuffleDeck)
   const startShuffleAnim = useTableStore((s) => s.startShuffleAnim)
   const clearShuffleAnim = useTableStore((s) => s.clearShuffleAnim)
+  const openContextMenu = useTableStore((s) => s.openContextMenu)
+
+  // Long-press tracking
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null)
+  const touchMovedRef = useRef(false)
 
   // Seed a standard deck on first render
   useEffect(() => {
@@ -58,6 +69,30 @@ function App() {
       startShuffleAnim(deck.id, deck.deck.cards.length)
     }
   }, [findDeckAt, shuffleDeck, startShuffleAnim])
+
+  // Right-click context menu handler
+  const handleContextMenu = useCallback((e: MouseEvent) => {
+    e.preventDefault()
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const cx = e.clientX - rect.left
+    const cy = e.clientY - rect.top
+
+    // Find deck at position for context menu
+    const decks = useTableStore.getState().decks
+    let deckId: string | null = null
+    for (let i = decks.length - 1; i >= 0; i--) {
+      const d = decks[i]!
+      if (cx >= d.position.x && cx <= d.position.x + CARD_W &&
+          cy >= d.position.y && cy <= d.position.y + CARD_H) {
+        deckId = d.id
+        break
+      }
+    }
+
+    openContextMenu({ x: e.clientX, y: e.clientY }, deckId)
+  }, [openContextMenu])
 
   // Draw a drop-zone highlight
   const drawDropHighlight = useCallback((ctx: CanvasRenderingContext2D, target: { kind: string; id: string; x: number; y: number }) => {
@@ -216,6 +251,98 @@ function App() {
     canvas.addEventListener('dblclick', handleDoubleClick)
     return () => canvas.removeEventListener('dblclick', handleDoubleClick)
   }, [handleDoubleClick])
+
+  // Context menu listener (right-click)
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    canvas.addEventListener('contextmenu', handleContextMenu)
+    return () => canvas.removeEventListener('contextmenu', handleContextMenu)
+  }, [handleContextMenu])
+
+  // Long-press for touch context menu
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const clearLongPress = () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current)
+        longPressTimerRef.current = null
+      }
+      touchStartPosRef.current = null
+      touchMovedRef.current = false
+    }
+
+    const onTouchStart = (e: TouchEvent) => {
+      // Only track single-finger long press (not during drag)
+      if (e.touches.length !== 1) {
+        clearLongPress()
+        return
+      }
+      const touch = e.touches[0]
+      const rect = canvas.getBoundingClientRect()
+      const cx = touch.clientX - rect.left
+      const cy = touch.clientY - rect.top
+
+      touchStartPosRef.current = { x: touch.clientX, y: touch.clientY }
+      touchMovedRef.current = false
+
+      longPressTimerRef.current = setTimeout(() => {
+        // If touch moved too much, cancel
+        if (touchMovedRef.current) return
+        // If already dragging, cancel
+        if (useTableStore.getState().dragging.active) return
+
+        // Find deck at touch position for context menu
+        const decks = useTableStore.getState().decks
+        let deckId: string | null = null
+        for (let i = decks.length - 1; i >= 0; i--) {
+          const d = decks[i]!
+          if (cx >= d.position.x && cx <= d.position.x + CARD_W &&
+              cy >= d.position.y && cy <= d.position.y + CARD_H) {
+            deckId = d.id
+            break
+          }
+        }
+
+        openContextMenu({ x: touch.clientX, y: touch.clientY }, deckId)
+        clearLongPress()
+      }, LONG_PRESS_MS)
+    }
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!touchStartPosRef.current) return
+      const touch = e.touches[0]
+      const dx = touch.clientX - touchStartPosRef.current.x
+      const dy = touch.clientY - touchStartPosRef.current.y
+      if (Math.abs(dx) > LONG_PRESS_MOVE_THRESHOLD || Math.abs(dy) > LONG_PRESS_MOVE_THRESHOLD) {
+        touchMovedRef.current = true
+        clearLongPress()
+      }
+    }
+
+    const onTouchEnd = () => {
+      clearLongPress()
+    }
+
+    const onTouchCancel = () => {
+      clearLongPress()
+    }
+
+    canvas.addEventListener('touchstart', onTouchStart, { passive: true })
+    canvas.addEventListener('touchmove', onTouchMove, { passive: true })
+    canvas.addEventListener('touchend', onTouchEnd)
+    canvas.addEventListener('touchcancel', onTouchCancel)
+
+    return () => {
+      clearLongPress()
+      canvas.removeEventListener('touchstart', onTouchStart)
+      canvas.removeEventListener('touchmove', onTouchMove)
+      canvas.removeEventListener('touchend', onTouchEnd)
+      canvas.removeEventListener('touchcancel', onTouchCancel)
+    }
+  }, [openContextMenu])
 
   return (
     <>

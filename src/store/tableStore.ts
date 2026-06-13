@@ -36,6 +36,7 @@ export interface ContextMenuState {
   readonly open: boolean
   readonly canvasPos: Position
   readonly deckId: string | null
+  readonly cardId: string | null
 }
 
 export interface ShuffleAnimState {
@@ -70,6 +71,9 @@ export interface TableState {
   addLooseCard: (card: Card, position?: Position) => void
   moveCard: (cardId: string, position: Position) => void
   flipCard: (cardId: string) => void
+  deleteCard: (cardId: string) => void
+  addCardToDeck: (cardId: string, deckId: string) => void
+  drawFromDeck: (deckId: string, position: Position) => void
 
   // Drag actions
   startDrag: (kind: 'deck' | 'card', id: string, offset: Position) => void
@@ -77,7 +81,7 @@ export interface TableState {
   endDrag: () => void
 
   // Context menu actions
-  openContextMenu: (canvasPos: Position, deckId: string | null) => void
+  openContextMenu: (canvasPos: Position, deckId: string | null, cardId?: string | null) => void
   closeContextMenu: () => void
   collectAllCards: (deckId: string) => void
 
@@ -111,6 +115,7 @@ const DEFAULT_CONTEXT_MENU: ContextMenuState = {
   open: false,
   canvasPos: { x: 0, y: 0 },
   deckId: null,
+  cardId: null,
 }
 
 function createStoreState() {
@@ -175,8 +180,8 @@ export const useTableStore = create<TableState>()(
         endDrag: () =>
           set({ dragging: DEFAULT_DRAG }),
 
-        openContextMenu: (canvasPos: Position, deckId: string | null) =>
-          set({ contextMenu: { open: true, canvasPos, deckId } }),
+        openContextMenu: (canvasPos: Position, deckId: string | null, cardId: string | null = null) =>
+          set({ contextMenu: { open: true, canvasPos, deckId, cardId } }),
 
         closeContextMenu: () =>
           set({ contextMenu: DEFAULT_CONTEXT_MENU }),
@@ -274,6 +279,48 @@ export const useTableStore = create<TableState>()(
               c.id === cardId ? { ...c, faceUp: !c.faceUp } : c,
             ),
           })),
+
+        deleteCard: (cardId: string) =>
+          set((state) => ({
+            looseCards: state.looseCards.filter((c) => c.id !== cardId),
+            contextMenu: state.contextMenu.cardId === cardId
+              ? DEFAULT_CONTEXT_MENU
+              : state.contextMenu,
+          })),
+
+        addCardToDeck: (cardId: string, deckId: string) =>
+          set((state) => {
+            const card = state.looseCards.find((c) => c.id === cardId)
+            const targetDeck = state.decks.find((d) => d.id === deckId)
+            if (!card || !targetDeck) return state
+            return {
+              looseCards: state.looseCards.filter((c) => c.id !== cardId),
+              decks: state.decks.map((d) =>
+                d.id === deckId
+                  ? { ...d, deck: { ...d.deck, cards: [...d.deck.cards, card.card] } }
+                  : d,
+              ),
+              contextMenu: DEFAULT_CONTEXT_MENU,
+            }
+          }),
+
+        drawFromDeck: (deckId: string, position: Position) =>
+          set((state) => {
+            const deck = state.decks.find((d) => d.id === deckId)
+            if (!deck || deck.deck.cards.length === 0) return state
+            const topCard = deck.deck.cards[0]
+            return {
+              looseCards: [
+                ...state.looseCards,
+                { id: uid('card'), card: topCard, position, faceUp: true },
+              ],
+              decks: state.decks.map((d) =>
+                d.id === deckId
+                  ? { ...d, deck: { ...d.deck, cards: d.deck.cards.slice(1) } }
+                  : d,
+              ),
+            }
+          }),
 
         shuffleDeck: (deckId: string) =>
           set((state) => {
