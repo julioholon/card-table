@@ -3,6 +3,7 @@ import { useTableStore } from './store/tableStore.js'
 import { drawDeck, drawLooseCard } from './cards/render.js'
 import { createStandardDeck } from './cards/decks.js'
 import { startFlip, hasActive, pruneCompleted } from './cards/flipAnimation.js'
+import type { PlacedDeck } from './store/tableStore.js'
 import './App.css'
 
 const CARD_W = 120
@@ -12,9 +13,13 @@ function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const decks = useTableStore((s) => s.decks)
   const looseCards = useTableStore((s) => s.looseCards)
+  const shuffleAnim = useTableStore((s) => s.shuffleAnim)
   const addDeck = useTableStore((s) => s.addDeck)
   const flipDeck = useTableStore((s) => s.flipDeck)
   const flipCard = useTableStore((s) => s.flipCard)
+  const shuffleDeck = useTableStore((s) => s.shuffleDeck)
+  const startShuffleAnim = useTableStore((s) => s.startShuffleAnim)
+  const clearShuffleAnim = useTableStore((s) => s.clearShuffleAnim)
 
   // Seed a standard deck on first render
   useEffect(() => {
@@ -24,6 +29,32 @@ function App() {
       addDeck(standard, { x: 120, y: 100 })
     }
   }, [addDeck])
+
+  // Hit-test: find deck at canvas position
+  const findDeckAt = useCallback((cx: number, cy: number): PlacedDeck | null => {
+    for (let i = decks.length - 1; i >= 0; i--) {
+      const d = decks[i]!
+      if (cx >= d.position.x && cx <= d.position.x + CARD_W &&
+          cy >= d.position.y && cy <= d.position.y + CARD_H) {
+        return d
+      }
+    }
+    return null
+  }, [decks])
+
+  // Double-click handler: shuffle deck
+  const handleDoubleClick = useCallback((e: MouseEvent) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const cx = e.clientX - rect.left
+    const cy = e.clientY - rect.top
+    const deck = findDeckAt(cx, cy)
+    if (deck) {
+      shuffleDeck(deck.id)
+      startShuffleAnim(deck.id, deck.deck.cards.length)
+    }
+  }, [findDeckAt, shuffleDeck, startShuffleAnim])
 
   // Main draw function
   const draw = useCallback(() => {
@@ -56,7 +87,7 @@ function App() {
 
     // Draw all decks (stacked cards)
     for (const deck of state.decks) {
-      drawDeck(ctx, deck)
+      drawDeck(ctx, deck, state.shuffleAnim)
     }
 
     // Draw all loose cards
@@ -65,19 +96,27 @@ function App() {
     }
   }, [])
 
-  // Animation loop: keep redrawing while flips are in progress
+  // Animation loop: keep redrawing while flips or shuffles are in progress
   const animFrameRef = useRef<number>(0)
   const animate = useCallback(() => {
     pruneCompleted()
+    // Check if shuffle animation is complete
+    const state = useTableStore.getState()
+    if (state.shuffleAnim) {
+      const elapsed = Date.now() - state.shuffleAnim.startTime
+      if (elapsed >= state.shuffleAnim.duration) {
+        clearShuffleAnim()
+      }
+    }
     draw()
-    if (hasActive()) {
+    if (hasActive() || useTableStore.getState().shuffleAnim) {
       animFrameRef.current = requestAnimationFrame(animate)
     }
-  }, [draw])
+  }, [draw, clearShuffleAnim])
 
   // Start animation loop helpers
   const ensureAnimating = useCallback(() => {
-    if (!hasActive()) {
+    if (!hasActive() && !useTableStore.getState().shuffleAnim) {
       animFrameRef.current = requestAnimationFrame(animate)
     }
   }, [animate])
@@ -109,7 +148,7 @@ function App() {
     }
   }, [draw, decks, looseCards])
 
-  // Click handler with hit-testing
+  // Click handler with hit-testing (single click = flip)
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -126,7 +165,6 @@ function App() {
         const lc = state.looseCards[i]!
         if (mx >= lc.position.x && mx <= lc.position.x + CARD_W &&
             my >= lc.position.y && my <= lc.position.y + CARD_H) {
-          // Start animation then toggle store state
           startFlip(lc.id, !lc.faceUp)
           flipCard(lc.id)
           ensureAnimating()
@@ -151,6 +189,14 @@ function App() {
     canvas.addEventListener('click', handleClick)
     return () => canvas.removeEventListener('click', handleClick)
   }, [flipDeck, flipCard, ensureAnimating, decks, looseCards])
+
+  // Double-click listener for shuffle
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    canvas.addEventListener('dblclick', handleDoubleClick)
+    return () => canvas.removeEventListener('dblclick', handleDoubleClick)
+  }, [handleDoubleClick])
 
   return <canvas ref={canvasRef} className="board-canvas" />
 }

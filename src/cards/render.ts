@@ -57,32 +57,58 @@ function drawCardBack(
   ctx: CanvasRenderingContext2D,
   x: number, y: number,
 ) {
-  // Card body
+  // Card body — deep navy with subtle gradient
   drawRoundRect(ctx, x, y, CARD_W, CARD_H, RADIUS)
-  ctx.fillStyle = '#1a1a2e'
+  const bgGrad = ctx.createLinearGradient(x, y, x + CARD_W, y + CARD_H)
+  bgGrad.addColorStop(0, '#16162a')
+  bgGrad.addColorStop(0.5, '#1a1a2e')
+  bgGrad.addColorStop(1, '#1e1e36')
+  ctx.fillStyle = bgGrad
   ctx.fill()
-  ctx.strokeStyle = '#30363d'
+
+  // Outer border — subtle metallic
+  ctx.strokeStyle = '#3a3a5c'
   ctx.lineWidth = 1.5
   ctx.stroke()
 
-  // Inner border
-  const inset = 8
-  drawRoundRect(ctx, x + inset, y + inset, CARD_W - inset * 2, CARD_H - inset * 2, RADIUS - 2)
+  // Inner border — double-line frame
+  const inset = 7
+  const innerW = CARD_W - inset * 2
+  const innerH = CARD_H - inset * 2
+  drawRoundRect(ctx, x + inset, y + inset, innerW, innerH, RADIUS - 2)
   ctx.strokeStyle = '#4a4a6a'
   ctx.lineWidth = 1
   ctx.stroke()
 
-  // Diamond grid pattern
-  const stepX = 18
-  const stepY = 18
-  ctx.strokeStyle = '#2a2a4a'
-  ctx.lineWidth = 0.8
-  for (let row = 0; row < 10; row++) {
-    for (let col = 0; col < 7; col++) {
-      const cx = x + inset + 6 + col * stepX
-      const cy = y + inset + 6 + row * stepY
-      if (cx > x + CARD_W - inset - 6 || cy > y + CARD_H - inset - 6) continue
-      const half = 5
+  // Second inner line for double-border effect
+  const inset2 = 11
+  drawRoundRect(ctx, x + inset2, y + inset2, CARD_W - inset2 * 2, CARD_H - inset2 * 2, RADIUS - 4)
+  ctx.strokeStyle = '#38385a'
+  ctx.lineWidth = 0.6
+  ctx.stroke()
+
+  // Diamond grid pattern — two-tone for depth
+  const stepX = 16
+  const stepY = 16
+  const patternInset = inset2 + 4
+  const patternW = CARD_W - patternInset * 2
+  const patternH = CARD_H - patternInset * 2
+  const cols = Math.floor(patternW / stepX)
+  const rows = Math.floor(patternH / stepY)
+  const startX = x + patternInset + (patternW - cols * stepX) / 2
+  const startY = y + patternInset + (patternH - rows * stepY) / 2
+
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const cx = startX + col * stepX + stepX / 2
+      const cy = startY + row * stepY + stepY / 2
+      const half = 4.5
+
+      // Alternate between two shades for subtle checkerboard depth
+      const isLight = (row + col) % 2 === 0
+      ctx.strokeStyle = isLight ? '#2e2e52' : '#262648'
+      ctx.lineWidth = 0.7
+
       ctx.beginPath()
       ctx.moveTo(cx, cy - half)
       ctx.lineTo(cx + half, cy)
@@ -92,6 +118,26 @@ function drawCardBack(
       ctx.stroke()
     }
   }
+
+  // Central ornament — subtle diamond wreath
+  const cx = x + CARD_W / 2
+  const cy = y + CARD_H / 2
+  ctx.strokeStyle = '#3a3a62'
+  ctx.lineWidth = 0.8
+  const ornamentR = 14
+  ctx.beginPath()
+  ctx.moveTo(cx, cy - ornamentR)
+  ctx.lineTo(cx + ornamentR, cy)
+  ctx.lineTo(cx, cy + ornamentR)
+  ctx.lineTo(cx - ornamentR, cy)
+  ctx.closePath()
+  ctx.stroke()
+
+  // Inner dot
+  ctx.fillStyle = '#4a4a6a'
+  ctx.beginPath()
+  ctx.arc(cx, cy, 2, 0, Math.PI * 2)
+  ctx.fill()
 }
 
 // ── Face-up: Standard card ───────────────────────────────────────────
@@ -251,6 +297,17 @@ export function drawDeck(
   const maxVisible = Math.min(count, 12) // cap visible stack height
   const offsetStep = 3
 
+  // Drop shadow under the entire stack
+  ctx.save()
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
+  ctx.shadowBlur = 12
+  ctx.shadowOffsetX = 4
+  ctx.shadowOffsetY = 6
+  drawRoundRect(ctx, position.x, position.y, CARD_W, CARD_H, RADIUS)
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.01)'
+  ctx.fill()
+  ctx.restore()
+
   for (let i = maxVisible - 1; i >= 0; i--) {
     const sx = position.x + i * offsetStep
     const sy = position.y - i * offsetStep
@@ -260,24 +317,59 @@ export function drawDeck(
     } else {
       // Rest of stack: always face-back
       drawCardBack(ctx, sx, sy)
+
+      // Edge highlight on the right side to show card thickness
+      const edgeX = sx + CARD_W - 1
+      const edgeTop = sy + RADIUS
+      const edgeBot = sy + CARD_H - RADIUS
+      ctx.strokeStyle = 'rgba(80, 80, 120, 0.25)'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(edgeX, edgeTop)
+      ctx.lineTo(edgeX, edgeBot)
+      ctx.stroke()
+
+      // Bottom edge
+      const bottomY = sy + CARD_H - 1
+      ctx.strokeStyle = 'rgba(60, 60, 100, 0.2)'
+      ctx.beginPath()
+      ctx.moveTo(sx + RADIUS, bottomY)
+      ctx.lineTo(sx + CARD_W - RADIUS, bottomY)
+      ctx.stroke()
     }
   }
 
-  // Stack count badge
+  // Stack count badge — pill shape with subtle shadow
   if (count > 1) {
-    const badgeX = position.x + CARD_W + 4
-    const badgeY = position.y + CARD_H - 20
+    const badgeX = position.x + CARD_W + 6
+    const badgeY = position.y + CARD_H - 22
+    const badgeW = Math.max(28, 10 + `${count}`.length * 7)
+    const badgeH = 20
+    const badgeR = badgeH / 2
+
+    // Badge shadow
+    ctx.save()
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)'
+    ctx.shadowBlur = 4
+    ctx.shadowOffsetX = 1
+    ctx.shadowOffsetY = 2
+    drawRoundRect(ctx, badgeX, badgeY, badgeW, badgeH, badgeR)
     ctx.fillStyle = '#21262d'
+    ctx.fill()
+    ctx.restore()
+
+    // Badge border
     ctx.strokeStyle = '#30363d'
     ctx.lineWidth = 1
-    drawRoundRect(ctx, badgeX, badgeY, 28, 18, 4)
-    ctx.fill()
+    drawRoundRect(ctx, badgeX, badgeY, badgeW, badgeH, badgeR)
     ctx.stroke()
+
+    // Badge text
     ctx.fillStyle = '#c9d1d9'
-    ctx.font = 'bold 10px system-ui, sans-serif'
+    ctx.font = 'bold 11px system-ui, sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText(`${count}`, badgeX + 14, badgeY + 9)
+    ctx.fillText(`${count}`, badgeX + badgeW / 2, badgeY + badgeH / 2)
   }
 }
 
