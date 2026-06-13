@@ -113,17 +113,23 @@ const DEFAULT_CONTEXT_MENU: ContextMenuState = {
   deckId: null,
 }
 
+function createStoreState() {
+  return {
+    decks: [] as PlacedDeck[],
+    looseCards: [] as LooseCard[],
+    dragging: DEFAULT_DRAG,
+    contextMenu: DEFAULT_CONTEXT_MENU,
+    shuffleAnim: null as ShuffleAnimState | null,
+  }
+}
+
 export const useTableStore = create<TableState>()(
   devtools(
     persist(
       (set) => ({
-        decks: [],
-        looseCards: [],
-        dragging: DEFAULT_DRAG,
-        contextMenu: DEFAULT_CONTEXT_MENU,
-        shuffleAnim: null,
+        ...createStoreState(),
 
-        addDeck: (deck, position = { x: 100, y: 100 }) =>
+        addDeck: (deck: Deck, position: Position = { x: 100, y: 100 }) =>
           set((state) => ({
             decks: [
               ...state.decks,
@@ -131,12 +137,12 @@ export const useTableStore = create<TableState>()(
             ],
           })),
 
-        removeDeck: (deckId) =>
+        removeDeck: (deckId: string) =>
           set((state) => ({
             decks: state.decks.filter((d) => d.id !== deckId),
           })),
 
-        addLooseCard: (card, position = { x: 200, y: 200 }) =>
+        addLooseCard: (card: Card, position: Position = { x: 200, y: 200 }) =>
           set((state) => ({
             looseCards: [
               ...state.looseCards,
@@ -144,24 +150,24 @@ export const useTableStore = create<TableState>()(
             ],
           })),
 
-        moveDeck: (deckId, position) =>
+        moveDeck: (deckId: string, position: Position) =>
           set((state) => ({
             decks: state.decks.map((d) =>
               d.id === deckId ? { ...d, position } : d,
             ),
           })),
 
-        moveCard: (cardId, position) =>
+        moveCard: (cardId: string, position: Position) =>
           set((state) => ({
             looseCards: state.looseCards.map((c) =>
               c.id === cardId ? { ...c, position } : c,
             ),
           })),
 
-        startDrag: (kind, id, offset) =>
+        startDrag: (kind: 'deck' | 'card', id: string, offset: Position) =>
           set({ dragging: { active: true, kind, id, offset } }),
 
-        updateDrag: (offset) =>
+        updateDrag: (offset: Position) =>
           set((state) => ({
             dragging: { ...state.dragging, offset },
           })),
@@ -169,13 +175,13 @@ export const useTableStore = create<TableState>()(
         endDrag: () =>
           set({ dragging: DEFAULT_DRAG }),
 
-        openContextMenu: (canvasPos, deckId) =>
+        openContextMenu: (canvasPos: Position, deckId: string | null) =>
           set({ contextMenu: { open: true, canvasPos, deckId } }),
 
         closeContextMenu: () =>
           set({ contextMenu: DEFAULT_CONTEXT_MENU }),
 
-        collectAllCards: (deckId) =>
+        collectAllCards: (deckId: string) =>
           set((state) => {
             const target = state.decks.find((d) => d.id === deckId)
             if (!target) return state
@@ -203,7 +209,7 @@ export const useTableStore = create<TableState>()(
             }
           }),
 
-        cutDeck: (deckId) =>
+        cutDeck: (deckId: string) =>
           set((state) => {
             const target = state.decks.find((d) => d.id === deckId)
             if (!target) return state
@@ -215,11 +221,11 @@ export const useTableStore = create<TableState>()(
             const topHalf = cards.slice(0, mid)
             const bottomHalf = cards.slice(mid)
 
-            const offset = 30
+            const off = 30
             const newDeck: PlacedDeck = {
               id: uid('deck'),
               deck: { name: target.deck.name, cards: bottomHalf },
-              position: { x: target.position.x + offset, y: target.position.y + offset },
+              position: { x: target.position.x + off, y: target.position.y + off },
               faceUp: target.faceUp,
             }
 
@@ -235,17 +241,17 @@ export const useTableStore = create<TableState>()(
             }
           }),
 
-        duplicateDeck: (deckId) =>
+        duplicateDeck: (deckId: string) =>
           set((state) => {
             const target = state.decks.find((d) => d.id === deckId)
             if (!target) return state
 
             const clonedCards = target.deck.cards.map((c) => ({ ...c }))
-            const offset = 40
+            const off = 40
             const newDeck: PlacedDeck = {
               id: uid('deck'),
               deck: { name: target.deck.name, cards: clonedCards },
-              position: { x: target.position.x + offset, y: target.position.y + offset },
+              position: { x: target.position.x + off, y: target.position.y + off },
               faceUp: false,
             }
 
@@ -253,28 +259,27 @@ export const useTableStore = create<TableState>()(
               decks: [...state.decks, newDeck],
               contextMenu: DEFAULT_CONTEXT_MENU,
             }
-          })),
+          }),
 
-        flipDeck: (deckId) =>
+        flipDeck: (deckId: string) =>
           set((state) => ({
             decks: state.decks.map((d) =>
               d.id === deckId ? { ...d, faceUp: !d.faceUp } : d,
             ),
           })),
 
-        flipCard: (cardId) =>
+        flipCard: (cardId: string) =>
           set((state) => ({
             looseCards: state.looseCards.map((c) =>
               c.id === cardId ? { ...c, faceUp: !c.faceUp } : c,
             ),
           })),
 
-        shuffleDeck: (deckId) =>
+        shuffleDeck: (deckId: string) =>
           set((state) => {
             const deck = state.decks.find((d) => d.id === deckId)
             if (!deck) return state
             const cards = [...deck.deck.cards]
-            // Fisher-Yates shuffle
             for (let i = cards.length - 1; i > 0; i--) {
               const j = Math.floor(Math.random() * (i + 1))
               const tmp = cards[i]!
@@ -290,7 +295,7 @@ export const useTableStore = create<TableState>()(
             }
           }),
 
-        startShuffleAnim: (deckId, cardCount) =>
+        startShuffleAnim: (deckId: string, cardCount: number) =>
           set({
             shuffleAnim: {
               deckId,
@@ -309,13 +314,8 @@ export const useTableStore = create<TableState>()(
           looseCards: [...state.looseCards],
         }),
         merge: (persisted: unknown, current: TableState): TableState => {
-          // If storage was cleared (null), reset to empty state
           if (!persisted || typeof persisted !== 'object') {
-            return {
-              ...current,
-              decks: [],
-              looseCards: [],
-            }
+            return { ...current, decks: [], looseCards: [] }
           }
           const p = persisted as PersistedState
           return {
