@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback, useState } from 'react'
 import { useTableStore } from './store/tableStore.js'
 import { drawDeck, drawLooseCard } from './cards/render.js'
 import { createStandardDeck } from './cards/decks.js'
@@ -18,8 +18,7 @@ const LONG_PRESS_MOVE_THRESHOLD = 10
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const hoverTargetRef = useDragAndDrop(canvasRef)
-  const hoverTarget = hoverTargetRef?.current
+  const { hoverTarget } = useDragAndDrop(canvasRef)
   const dragging = useTableStore((s) => s.dragging)
   const contextMenu = useTableStore((s) => s.contextMenu)
   const addDeck = useTableStore((s) => s.addDeck)
@@ -111,27 +110,7 @@ function App() {
   }, [openContextMenu, findCardAt, findDeckAt])
 
   // Draw a drop-zone highlight
-  const drawDropHighlight = useCallback((ctx: CanvasRenderingContext2D, target: import("../hooks/useDragAndDrop").HitTarget) => {
-    const state = useTableStore.getState()
-    let x = 0, y = 0
-    if (target.kind === "deck") {
-      const d = state.decks.find((d) => d.id === target.id)
-      if (d) { x = d.position.x; y = d.position.y }
-    } else {
-      const c = state.looseCards.find((c) => c.id === target.id)
-      if (c) { x = c.position.x; y = c.position.y }
-    }
-    ctx.save()
-    ctx.strokeStyle = '#58a6ff'
-    ctx.lineWidth = 3
-    ctx.setLineDash([6, 4])
-    const pad = 4
-    ctx.strokeRect(x - pad, y - pad, CARD_W + pad * 2, CARD_H + pad * 2)
-    ctx.restore()
-  }, [])
-
-  // OLD drawDropHighlight stub replaced above
-  const _old_drawDropHighlight = useCallback((//
+  const drawDropHighlight = useCallback((ctx: CanvasRenderingContext2D, target: { kind: string; id: string; x: number; y: number }) => {
     ctx.save()
     ctx.strokeStyle = '#58a6ff'
     ctx.lineWidth = 3
