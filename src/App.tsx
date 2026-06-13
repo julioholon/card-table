@@ -111,13 +111,22 @@ function App() {
   }, [openContextMenu, findCardAt, findDeckAt])
 
   // Draw a drop-zone highlight
-  const drawDropHighlight = useCallback((ctx: CanvasRenderingContext2D, target: { kind: string; id: string; x: number; y: number }) => {
+  const drawDropHighlight = useCallback((ctx: CanvasRenderingContext2D, target: import("../hooks/useDragAndDrop").HitTarget) => {
+    const state = useTableStore.getState()
+    let x = 0, y = 0
+    if (target.kind === "deck") {
+      const d = state.decks.find((d) => d.id === target.id)
+      if (d) { x = d.position.x; y = d.position.y }
+    } else {
+      const c = state.looseCards.find((c) => c.id === target.id)
+      if (c) { x = c.position.x; y = c.position.y }
+    }
     ctx.save()
     ctx.strokeStyle = '#58a6ff'
     ctx.lineWidth = 3
     ctx.setLineDash([6, 4])
     const pad = 4
-    ctx.strokeRect(target.x - pad, target.y - pad, CARD_W + pad * 2, CARD_H + pad * 2)
+    ctx.strokeRect(x - pad, y - pad, CARD_W + pad * 2, CARD_H + pad * 2)
     ctx.restore()
   }, [])
 
