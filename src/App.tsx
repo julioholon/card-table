@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from 'react'
+import { useRef, useEffect, useCallback } from 'react'
 import { useTableStore } from './store/tableStore.js'
 import { drawDeck, drawLooseCard } from './cards/render.js'
 import { createStandardDeck } from './cards/decks.js'
@@ -18,7 +18,7 @@ const LONG_PRESS_MOVE_THRESHOLD = 10
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const { hoverTarget } = useDragAndDrop(canvasRef)
+  // const { hoverTarget } = useDragAndDrop(canvasRef) // TODO: useDragAndDrop not yet wired
   const dragging = useTableStore((s) => s.dragging)
   const contextMenu = useTableStore((s) => s.contextMenu)
   const addDeck = useTableStore((s) => s.addDeck)

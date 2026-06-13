@@ -6,7 +6,7 @@
 //   • Decks: stacked offset cards (top card face-up or all face-back)
 
 import type { Card, StandardCard, TarotCard } from './types.js'
-import type { PlacedDeck, LooseCard, Position } from '../store/tableStore.js'
+import type { PlacedDeck, LooseCard } from '../store/tableStore.js'
 import { getProgress } from './flipAnimation.js'
 
 // ── Constants ────────────────────────────────────────────────────────
