@@ -18,7 +18,8 @@ const LONG_PRESS_MOVE_THRESHOLD = 10
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  // const { hoverTarget } = useDragAndDrop(canvasRef) // TODO: useDragAndDrop not yet wired
+  const hoverTargetRef = useDragAndDrop(canvasRef)
+  const hoverTarget = hoverTargetRef?.current
   const dragging = useTableStore((s) => s.dragging)
   const contextMenu = useTableStore((s) => s.contextMenu)
   const addDeck = useTableStore((s) => s.addDeck)
