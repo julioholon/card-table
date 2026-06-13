@@ -111,7 +111,7 @@ function App() {
   }, [openContextMenu, findCardAt, findDeckAt])
 
   // Draw a drop-zone highlight
-  const drawDropHighlight = useCallback((ctx: CanvasRenderingContext2D, target: import("../hooks/useDragAndDrop").HitTarget) => {
+  const drawDropHighlight = useCallback((ctx: CanvasRenderingContext2D, target: import("./hooks/useDragAndDrop").HitTarget) => {
     const state = useTableStore.getState()
     let x = 0, y = 0
     if (target.kind === "deck") {
