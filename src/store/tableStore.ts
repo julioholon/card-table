@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-import { Card, Deck } from '../cards/types.js'
+import type { Card, Deck } from '../cards/types.js'
 
 export const STORAGE_KEY = 'card-table-state'
 

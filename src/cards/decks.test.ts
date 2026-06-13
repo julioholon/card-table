@@ -1,4 +1,5 @@
 // src/cards/decks.test.ts
+import type { TarotCard } from './types.js'
 
 import { describe, it, expect } from 'vitest';
 import { createStandardDeck, createTarotDeck } from './decks.js';
@@ -75,19 +76,19 @@ describe('createTarotDeck', () => {
 
   it('contains exactly 22 major arcana cards', () => {
     const deck = createTarotDeck();
-    const majors = deck.cards.filter(c => c.arcana === 'major');
+    const majors = deck.cards.filter((c): c is TarotCard => c.kind === 'tarot' && c.arcana === 'major');
     expect(majors).toHaveLength(22);
   });
 
   it('contains exactly 56 minor arcana cards', () => {
     const deck = createTarotDeck();
-    const minors = deck.cards.filter(c => c.arcana === 'minor');
+    const minors = deck.cards.filter((c): c is TarotCard => c.kind === 'tarot' && c.arcana === 'minor');
     expect(minors).toHaveLength(56);
   });
 
   it('major arcana cards have name and no suit/rank', () => {
     const deck = createTarotDeck();
-    const majors = deck.cards.filter(c => c.arcana === 'major');
+    const majors = deck.cards.filter((c): c is TarotCard => c.kind === 'tarot' && c.arcana === 'major');
     for (const card of majors) {
       expect(card.name).toBeTruthy();
       expect(card.suit).toBeNull();
@@ -97,7 +98,7 @@ describe('createTarotDeck', () => {
 
   it('minor arcana cards have suit and rank and no name', () => {
     const deck = createTarotDeck();
-    const minors = deck.cards.filter(c => c.arcana === 'minor');
+    const minors = deck.cards.filter((c): c is TarotCard => c.kind === 'tarot' && c.arcana === 'minor');
     for (const card of minors) {
       expect(card.name).toBeNull();
       expect(card.suit).toBeTruthy();
@@ -107,14 +108,14 @@ describe('createTarotDeck', () => {
 
   it('minor arcana contains all 4 tarot suits', () => {
     const deck = createTarotDeck();
-    const minors = deck.cards.filter(c => c.arcana === 'minor');
+    const minors = deck.cards.filter((c): c is TarotCard => c.kind === 'tarot' && c.arcana === 'minor');
     const suits = new Set(minors.map(c => c.suit));
     expect(suits).toEqual(new Set(['wands', 'cups', 'swords', 'pentacles']));
   });
 
   it('each tarot suit has exactly 14 minor cards', () => {
     const deck = createTarotDeck();
-    const minors = deck.cards.filter(c => c.arcana === 'minor');
+    const minors = deck.cards.filter((c): c is TarotCard => c.kind === 'tarot' && c.arcana === 'minor');
     for (const suit of ['wands', 'cups', 'swords', 'pentacles']) {
       const count = minors.filter(c => c.suit === suit).length;
       expect(count).toBe(14);
@@ -129,13 +130,13 @@ describe('createTarotDeck', () => {
 
   it('contains "The Fool" as first major arcana', () => {
     const deck = createTarotDeck();
-    const majors = deck.cards.filter(c => c.arcana === 'major');
+    const majors = deck.cards.filter((c): c is TarotCard => c.kind === 'tarot' && c.arcana === 'major');
     expect(majors[0].name).toBe('The Fool');
   });
 
   it('contains "The World" as last major arcana', () => {
     const deck = createTarotDeck();
-    const majors = deck.cards.filter(c => c.arcana === 'major');
+    const majors = deck.cards.filter((c): c is TarotCard => c.kind === 'tarot' && c.arcana === 'major');
     expect(majors[majors.length - 1].name).toBe('The World');
   });
 });

@@ -1,6 +1,6 @@
 // src/cards/decks.ts
 
-import { Card, Deck, Suit, Rank, TarotSuit, MinorRank, MajorArcana } from './types.js';
+import type { Card, Deck, Suit, Rank, TarotSuit, MinorRank, MajorArcana } from './types.js';
 
 const SUITS: readonly Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'] as const;
 const RANKS: readonly Rank[] = [

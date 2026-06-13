@@ -29,7 +29,7 @@ export function ContextMenu() {
   // Close on outside click/tap
   useEffect(() => {
     if (!contextMenu.open) return
-    function handleOutside(e: MouseEvent) {
+    function handleOutside(e: MouseEvent | TouchEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         closeContextMenu()
       }
