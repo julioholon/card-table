@@ -3,6 +3,7 @@ import { useTableStore } from './store/tableStore.js'
 import { drawDeck, drawLooseCard } from './cards/render.js'
 import { createStandardDeck } from './cards/decks.js'
 import { startFlip, hasActive, pruneCompleted } from './cards/flipAnimation.js'
+import { useDragAndDrop } from './hooks/useDragAndDrop.js'
 import { ContextMenu } from './components/ContextMenu.js'
 import type { PlacedDeck } from './store/tableStore.js'
 import './App.css'
@@ -12,16 +13,15 @@ const CARD_H = 170
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const decks = useTableStore((s) => s.decks)
-  const looseCards = useTableStore((s) => s.looseCards)
-  const shuffleAnim = useTableStore((s) => s.shuffleAnim)
+  const { hoverTarget } = useDragAndDrop(canvasRef)
+  const dragging = useTableStore((s) => s.dragging)
+  const contextMenu = useTableStore((s) => s.contextMenu)
   const addDeck = useTableStore((s) => s.addDeck)
   const flipDeck = useTableStore((s) => s.flipDeck)
   const flipCard = useTableStore((s) => s.flipCard)
   const shuffleDeck = useTableStore((s) => s.shuffleDeck)
   const startShuffleAnim = useTableStore((s) => s.startShuffleAnim)
   const clearShuffleAnim = useTableStore((s) => s.clearShuffleAnim)
-  const openContextMenu = useTableStore((s) => s.openContextMenu)
 
   // Seed a standard deck on first render
   useEffect(() => {
@@ -34,6 +34,7 @@ function App() {
 
   // Hit-test: find deck at canvas position
   const findDeckAt = useCallback((cx: number, cy: number): PlacedDeck | null => {
+    const decks = useTableStore.getState().decks
     for (let i = decks.length - 1; i >= 0; i--) {
       const d = decks[i]!
       if (cx >= d.position.x && cx <= d.position.x + CARD_W &&
@@ -42,7 +43,7 @@ function App() {
       }
     }
     return null
-  }, [decks])
+  }, [])
 
   // Double-click handler: shuffle deck
   const handleDoubleClick = useCallback((e: MouseEvent) => {
@@ -57,6 +58,17 @@ function App() {
       startShuffleAnim(deck.id, deck.deck.cards.length)
     }
   }, [findDeckAt, shuffleDeck, startShuffleAnim])
+
+  // Draw a drop-zone highlight
+  const drawDropHighlight = useCallback((ctx: CanvasRenderingContext2D, target: { kind: string; id: string; x: number; y: number }) => {
+    ctx.save()
+    ctx.strokeStyle = '#58a6ff'
+    ctx.lineWidth = 3
+    ctx.setLineDash([6, 4])
+    const pad = 4
+    ctx.strokeRect(target.x - pad, target.y - pad, CARD_W + pad * 2, CARD_H + pad * 2)
+    ctx.restore()
+  }, [])
 
   // Main draw function
   const draw = useCallback(() => {
@@ -96,13 +108,17 @@ function App() {
     for (const lc of state.looseCards) {
       drawLooseCard(ctx, lc)
     }
-  }, [])
 
-  // Animation loop: keep redrawing while flips or shuffles are in progress
+    // Draw drop-zone highlight when dragging and hovering over a target
+    if (dragging.active && hoverTarget) {
+      drawDropHighlight(ctx, hoverTarget)
+    }
+  }, [dragging.active, hoverTarget, drawDropHighlight])
+
+  // Animation loop
   const animFrameRef = useRef<number>(0)
   const animate = useCallback(() => {
     pruneCompleted()
-    // Check if shuffle animation is complete
     const state = useTableStore.getState()
     if (state.shuffleAnim) {
       const elapsed = Date.now() - state.shuffleAnim.startTime
@@ -116,7 +132,6 @@ function App() {
     }
   }, [draw, clearShuffleAnim])
 
-  // Start animation loop helpers
   const ensureAnimating = useCallback(() => {
     if (!hasActive() && !useTableStore.getState().shuffleAnim) {
       animFrameRef.current = requestAnimationFrame(animate)
@@ -134,7 +149,6 @@ function App() {
       draw()
     }
 
-    // Re-render whenever store state changes
     const unsub = useTableStore.subscribe(() => {
       draw()
     })
@@ -148,7 +162,7 @@ function App() {
       window.removeEventListener('resize', resize)
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
     }
-  }, [draw, decks, looseCards])
+  }, [draw])
 
   // Click handler with hit-testing (single click = flip)
   useEffect(() => {
@@ -156,6 +170,9 @@ function App() {
     if (!canvas) return
 
     const handleClick = (e: MouseEvent) => {
+      // Don't process clicks while dragging
+      if (dragging.active) return
+
       const rect = canvas.getBoundingClientRect()
       const mx = e.clientX - rect.left
       const my = e.clientY - rect.top
@@ -190,7 +207,7 @@ function App() {
 
     canvas.addEventListener('click', handleClick)
     return () => canvas.removeEventListener('click', handleClick)
-  }, [flipDeck, flipCard, ensureAnimating, decks, looseCards])
+  }, [flipDeck, flipCard, ensureAnimating, dragging.active])
 
   // Double-click listener for shuffle
   useEffect(() => {
@@ -200,31 +217,10 @@ function App() {
     return () => canvas.removeEventListener('dblclick', handleDoubleClick)
   }, [handleDoubleClick])
 
-  // Right-click context menu handler
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const handleContextMenu = (e: MouseEvent) => {
-      e.preventDefault()
-      const rect = canvas.getBoundingClientRect()
-      const cx = e.clientX - rect.left
-      const cy = e.clientY - rect.top
-      const deck = findDeckAt(cx, cy)
-      openContextMenu(
-        { x: e.clientX, y: e.clientY },
-        deck ? deck.id : null,
-      )
-    }
-
-    canvas.addEventListener('contextmenu', handleContextMenu)
-    return () => canvas.removeEventListener('contextmenu', handleContextMenu)
-  }, [findDeckAt, openContextMenu])
-
   return (
     <>
       <canvas ref={canvasRef} className="board-canvas" />
-      <ContextMenu />
+      {contextMenu.open && <ContextMenu />}
     </>
   )
 }
