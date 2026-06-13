@@ -1,16 +1,17 @@
 // src/hooks/useDragAndDrop.ts
 //
 // Canvas-based drag-and-drop for decks and loose cards.
+// Works with both mouse and touch input.
 // Hit-tests against card bounding boxes (decks use their top-card rect,
-// loose cards use their own rect). On mousedown over a target, calls
-// store.startDrag; on mousemove while dragging, moves the object; on
-// mouseup, commits the final position via store.moveDeck / moveCard.
+// loose cards use their own rect). On pointer down over a target, calls
+// store.startDrag; on pointer move while dragging, moves the object; on
+// pointer up, commits the final position via store.moveDeck / moveCard.
 //
 // Shift+drag on a deck draws a card from the top of the deck instead of
 // moving the deck. On mouseup, calls store.drawFromDeck with the drop
 // position.
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import { useTableStore } from '../store/tableStore.js'
 import type { PlacedDeck, LooseCard } from '../store/tableStore.js'
 
@@ -36,7 +37,6 @@ function hitTestDecks(
   decks: readonly PlacedDeck[],
   px: number, py: number,
 ): HitTarget | null {
-  // Iterate in reverse so topmost (last drawn) wins
   for (let i = decks.length - 1; i >= 0; i--) {
     const d = decks[i]
     if (pointInRect(px, py, d.position.x, d.position.y, CARD_W, CARD_H)) {
@@ -65,10 +65,18 @@ export function hitTest(
   looseCards: readonly LooseCard[],
   px: number, py: number,
 ): HitTarget | null {
-  // Decks first (they're typically underneath loose cards)
   const deckHit = hitTestDecks(decks, px, py)
   if (deckHit) return deckHit
   return hitTestLooseCards(looseCards, px, py)
+}
+
+// ── Extract position from mouse or touch event ───────────────────────
+function getEventPos(
+  canvas: HTMLCanvasElement,
+  e: MouseEvent | Touch,
+): { x: number; y: number } {
+  const rect = canvas.getBoundingClientRect()
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top }
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────
@@ -81,120 +89,154 @@ export function useDragAndDrop(canvasRef: React.RefObject<HTMLCanvasElement | nu
   const moveCard = useTableStore((s) => s.moveCard)
   const endDrag = useTableStore((s) => s.endDrag)
   const drawFromDeck = useTableStore((s) => s.drawFromDeck)
-  const addCardToDeck = useTableStore((s) => s.addCardToDeck)
 
-  // Track whether the current drag is a draw-from-deck operation
   const isDrawDragRef = useRef(false)
   const drawDeckIdRef = useRef<string | null>(null)
-
-  // Track the last hit target for drop-zone highlighting
   const hoverTargetRef = useRef<HitTarget | null>(null)
+  const touchDraggingRef = useRef(false)
+
+  const draggingRef = useRef(dragging)
+  draggingRef.current = dragging
+  const decksRef = useRef(decks)
+  decksRef.current = decks
+  const looseCardsRef = useRef(looseCards)
+  looseCardsRef.current = looseCards
+
+  const beginDrag = useCallback((x: number, y: number, isShift: boolean) => {
+    const target = hitTest(decksRef.current, looseCardsRef.current, x, y)
+    if (!target) return false
+
+    if (target.kind === 'deck' && isShift) {
+      const d = decksRef.current.find((d) => d.id === target.id)
+      if (!d) return false
+      if (d.deck.cards.length === 0) return false
+      isDrawDragRef.current = true
+      drawDeckIdRef.current = target.id
+      return true
+    }
+
+    let objX: number, objY: number
+    if (target.kind === 'deck') {
+      const d = decksRef.current.find((d) => d.id === target.id)
+      if (!d) return false
+      objX = d.position.x
+      objY = d.position.y
+    } else {
+      const c = looseCardsRef.current.find((c) => c.id === target.id)
+      if (!c) return false
+      objX = c.position.x
+      objY = c.position.y
+    }
+
+    startDrag(target.kind, target.id, { x: objX - x, y: objY - y })
+    return true
+  }, [startDrag])
+
+  const moveDrag = useCallback((x: number, y: number) => {
+    if (isDrawDragRef.current) {
+      hoverTargetRef.current = hitTest(decksRef.current, looseCardsRef.current, x, y)
+      return
+    }
+    const drag = draggingRef.current
+    if (drag.active && drag.id) {
+      const newX = x + drag.offset.x
+      const newY = y + drag.offset.y
+      if (drag.kind === 'deck') {
+        moveDeck(drag.id, { x: newX, y: newY })
+      } else {
+        moveCard(drag.id, { x: newX, y: newY })
+      }
+    }
+    hoverTargetRef.current = hitTest(decksRef.current, looseCardsRef.current, x, y)
+  }, [moveDeck, moveCard])
+
+  const finishDrag = useCallback((x?: number, y?: number) => {
+    if (isDrawDragRef.current && drawDeckIdRef.current) {
+      if (x !== undefined && y !== undefined) {
+        drawFromDeck(drawDeckIdRef.current, { x, y })
+      }
+      isDrawDragRef.current = false
+      drawDeckIdRef.current = null
+    } else if (draggingRef.current.active) {
+      endDrag()
+    }
+    hoverTargetRef.current = null
+  }, [endDrag, drawFromDeck])
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const getPos = (e: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect()
-      return { x: e.clientX - rect.left, y: e.clientY - rect.top }
-    }
-
     const onMouseDown = (e: MouseEvent) => {
-      const { x, y } = getPos(e)
-      const target = hitTest(decks, looseCards, x, y)
-      if (!target) return
-
-      // Shift+drag on a deck = draw a card from it
-      if (target.kind === 'deck' && e.shiftKey) {
-        const d = decks.find((d) => d.id === target.id)
-        if (!d) return
-        if (d.deck.cards.length === 0) return // cannot draw from empty deck
-        isDrawDragRef.current = true
-        drawDeckIdRef.current = target.id
-        return
-      }
-
-      // Calculate offset from object origin to cursor
-      let objX: number, objY: number
-      if (target.kind === 'deck') {
-        const d = decks.find((d) => d.id === target.id)
-        if (!d) return
-        objX = d.position.x
-        objY = d.position.y
-      } else {
-        const c = looseCards.find((c) => c.id === target.id)
-        if (!c) return
-        objX = c.position.x
-        objY = c.position.y
-      }
-
-      startDrag(target.kind, target.id, { x: objX - x, y: objY - y })
+      const { x, y } = getEventPos(canvas, e)
+      beginDrag(x, y, e.shiftKey)
     }
 
     const onMouseMove = (e: MouseEvent) => {
-      const { x, y } = getPos(e)
-
-      if (isDrawDragRef.current) {
-        // During a draw drag, no object moves — just track for hover highlight
-        hoverTargetRef.current = hitTest(decks, looseCards, x, y)
-        return
-      }
-
-      if (dragging.active && dragging.id) {
-        // Move the dragged object
-        const newX = x + dragging.offset.x
-        const newY = y + dragging.offset.y
-        if (dragging.kind === 'deck') {
-          moveDeck(dragging.id, { x: newX, y: newY })
-        } else {
-          moveCard(dragging.id, { x: newX, y: newY })
-        }
-      }
-
-      // Update hover target for drop-zone highlighting
-      hoverTargetRef.current = hitTest(decks, looseCards, x, y)
+      const { x, y } = getEventPos(canvas, e)
+      moveDrag(x, y)
     }
 
     const onMouseUp = (e: MouseEvent) => {
-      if (isDrawDragRef.current && drawDeckIdRef.current) {
-        // Draw a card from the deck at the drop position
-        const { x, y } = getPos(e)
-        drawFromDeck(drawDeckIdRef.current, { x, y })
-        isDrawDragRef.current = false
-        drawDeckIdRef.current = null
-      } else if (dragging.active) {
-        const { x, y } = getPos(e)
+      const { x, y } = getEventPos(canvas, e)
+      finishDrag(x, y)
+    }
 
-        // Check if a loose card was dropped onto a deck — merge it
-        if (dragging.kind === 'card') {
-          const dropTarget = hitTestDecks(
-            useTableStore.getState().decks, x, y,
-          )
-          if (dropTarget) {
-            addCardToDeck(dragging.id, dropTarget.id)
-            endDrag()
-            hoverTargetRef.current = null
-            return
-          }
-        }
-
-        endDrag()
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return
+      const touch = e.touches[0]
+      const { x, y } = getEventPos(canvas, touch)
+      touchDraggingRef.current = beginDrag(x, y, false)
+      if (touchDraggingRef.current) {
+        e.preventDefault()
       }
-      hoverTargetRef.current = null
+    }
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return
+      if (!touchDraggingRef.current) return
+      e.preventDefault()
+      const touch = e.touches[0]
+      const { x, y } = getEventPos(canvas, touch)
+      moveDrag(x, y)
+    }
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (touchDraggingRef.current) {
+        const touch = e.changedTouches[0]
+        const { x, y } = getEventPos(canvas, touch)
+        finishDrag(x, y)
+        touchDraggingRef.current = false
+      }
+    }
+
+    const onTouchCancel = () => {
+      if (touchDraggingRef.current) {
+        finishDrag()
+        touchDraggingRef.current = false
+      }
     }
 
     canvas.addEventListener('mousedown', onMouseDown)
     canvas.addEventListener('mousemove', onMouseMove)
     canvas.addEventListener('mouseup', onMouseUp)
     canvas.addEventListener('mouseleave', onMouseUp)
+    canvas.addEventListener('touchstart', onTouchStart, { passive: false })
+    canvas.addEventListener('touchmove', onTouchMove, { passive: false })
+    canvas.addEventListener('touchend', onTouchEnd)
+    canvas.addEventListener('touchcancel', onTouchCancel)
 
     return () => {
       canvas.removeEventListener('mousedown', onMouseDown)
       canvas.removeEventListener('mousemove', onMouseMove)
       canvas.removeEventListener('mouseup', onMouseUp)
       canvas.removeEventListener('mouseleave', onMouseUp)
+      canvas.removeEventListener('touchstart', onTouchStart)
+      canvas.removeEventListener('touchmove', onTouchMove)
+      canvas.removeEventListener('touchend', onTouchEnd)
+      canvas.removeEventListener('touchcancel', onTouchCancel)
     }
-  }, [canvasRef, dragging, decks, looseCards, startDrag, moveDeck, moveCard, endDrag, drawFromDeck, addCardToDeck])
+  }, [canvasRef, beginDrag, moveDrag, finishDrag])
 
   return hoverTargetRef
 }
