@@ -645,6 +645,70 @@ describe('addCardToDeck', () => {
   })
 })
 
+describe('merge card into deck (card dropped on deck)', () => {
+  it('adds card to bottom of deck when dropped on deck', () => {
+    const deck = createStandardDeck()
+    const { addDeck, addCardToDeck } = useTableStore.getState()
+    addDeck(deck, { x: 100, y: 100 })
+    const deckId = useTableStore.getState().decks[0].id
+    const card = createStandardDeck().cards[10]
+    useTableStore.getState().addLooseCard(card)
+    const cardId = useTableStore.getState().looseCards[0].id
+    addCardToDeck(cardId, deckId)
+    const state = useTableStore.getState()
+    expect(state.looseCards).toHaveLength(0)
+    expect(state.decks[0].deck.cards).toHaveLength(53)
+    // Card is at the bottom (end) of the deck
+    expect(state.decks[0].deck.cards[52]).toEqual(card)
+  })
+
+  it('card is removed from loose cards after merge', () => {
+    const deck = createStandardDeck()
+    const { addDeck, addLooseCard, addCardToDeck } = useTableStore.getState()
+    addDeck(deck, { x: 100, y: 100 })
+    const deckId = useTableStore.getState().decks[0].id
+    addLooseCard(deck.cards[0], { x: 300, y: 300 })
+    addLooseCard(deck.cards[1], { x: 400, y: 400 })
+    const card = useTableStore.getState().looseCards[0]
+    addCardToDeck(card.id, deckId)
+    // Only one loose card remains
+    expect(useTableStore.getState().looseCards).toHaveLength(1)
+    expect(useTableStore.getState().looseCards[0].id).not.toBe(card.id)
+  })
+
+  it('does not merge when card is dropped on empty space', () => {
+    // When dropped on empty space (no deck hit), the card stays loose
+    const deck = createStandardDeck()
+    const { addDeck, addLooseCard, moveCard } = useTableStore.getState()
+    addDeck(deck, { x: 100, y: 100 })
+    const card = createStandardDeck().cards[0]
+    addLooseCard(card, { x: 500, y: 500 })
+    const cardId = useTableStore.getState().looseCards[0].id
+    moveCard(cardId, { x: 600, y: 600 })
+    const state = useTableStore.getState()
+    expect(state.looseCards).toHaveLength(1)
+    expect(state.looseCards[0].position).toEqual({ x: 600, y: 600 })
+    expect(state.decks[0].deck.cards).toHaveLength(52)
+  })
+
+  it('dropping a card onto a different deck targets the correct deck', () => {
+    const { addDeck, addLooseCard, addCardToDeck } = useTableStore.getState()
+    addDeck(createStandardDeck(), { x: 100, y: 100 })
+    addDeck({ name: 'receiver', cards: [] }, { x: 500, y: 500 })
+    const decks = useTableStore.getState().decks
+    const receiverId = decks[1].id
+    const card = createStandardDeck().cards[5]
+    addLooseCard(card)
+    const cardId = useTableStore.getState().looseCards[0].id
+    addCardToDeck(cardId, receiverId)
+    const state = useTableStore.getState()
+    expect(state.looseCards).toHaveLength(0)
+    expect(state.decks[0].deck.cards).toHaveLength(52)
+    expect(state.decks[1].deck.cards).toHaveLength(1)
+    expect(state.decks[1].deck.cards[0]).toEqual(card)
+  })
+})
+
 describe('context menu with cardId', () => {
   it('openContextMenu with cardId', () => {
     useTableStore.getState().openContextMenu({ x: 100, y: 200 }, null, 'card_5')
