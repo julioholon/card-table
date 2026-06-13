@@ -26,15 +26,21 @@ export function ContextMenu() {
     setDeckSubmenuOpen(false)
   }, [contextMenu.open])
 
+  // Close on outside click/tap
   useEffect(() => {
     if (!contextMenu.open) return
-    function handleClick(e: MouseEvent) {
+    function handleOutside(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         closeContextMenu()
       }
     }
-    document.addEventListener('mousedown', handleClick, true)
-    return () => document.removeEventListener('mousedown', handleClick, true)
+    // Use both mousedown and touchstart for mobile compatibility
+    document.addEventListener('mousedown', handleOutside, true)
+    document.addEventListener('touchstart', handleOutside, true)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside, true)
+      document.removeEventListener('touchstart', handleOutside, true)
+    }
   }, [contextMenu.open, closeContextMenu])
 
   useEffect(() => {
@@ -119,6 +125,7 @@ export function ContextMenu() {
             className="context-menu-item context-menu-parent"
             onMouseEnter={() => setDeckSubmenuOpen(true)}
             onMouseLeave={() => setDeckSubmenuOpen(false)}
+            onClick={() => setDeckSubmenuOpen((prev) => !prev)}
             style={{ position: 'relative' }}
           >
             Add to Deck

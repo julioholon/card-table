@@ -51,6 +51,23 @@
   border-top: 1px solid #21262d;
 }
 
+.context-menu-parent {
+  cursor: pointer;
+}
+
+.context-submenu {
+  min-width: 160px;
+}
+
+.context-menu-danger {
+  color: #f85149;
+}
+
+.context-menu-danger:hover:not(:disabled) {
+  background: #da3633;
+  color: #ffffff;
+}
+
 /* ── Responsive: small screens ─────────────────────────────────── */
 @media (max-width: 768px) {
   .context-menu {

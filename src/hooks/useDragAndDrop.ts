@@ -81,6 +81,7 @@ export function useDragAndDrop(canvasRef: React.RefObject<HTMLCanvasElement | nu
   const moveCard = useTableStore((s) => s.moveCard)
   const endDrag = useTableStore((s) => s.endDrag)
   const drawFromDeck = useTableStore((s) => s.drawFromDeck)
+  const addCardToDeck = useTableStore((s) => s.addCardToDeck)
 
   // Track whether the current drag is a draw-from-deck operation
   const isDrawDragRef = useRef(false)
@@ -162,6 +163,21 @@ export function useDragAndDrop(canvasRef: React.RefObject<HTMLCanvasElement | nu
         isDrawDragRef.current = false
         drawDeckIdRef.current = null
       } else if (dragging.active) {
+        const { x, y } = getPos(e)
+
+        // Check if a loose card was dropped onto a deck — merge it
+        if (dragging.kind === 'card') {
+          const dropTarget = hitTestDecks(
+            useTableStore.getState().decks, x, y,
+          )
+          if (dropTarget) {
+            addCardToDeck(dragging.id, dropTarget.id)
+            endDrag()
+            hoverTargetRef.current = null
+            return
+          }
+        }
+
         endDrag()
       }
       hoverTargetRef.current = null
@@ -178,7 +194,7 @@ export function useDragAndDrop(canvasRef: React.RefObject<HTMLCanvasElement | nu
       canvas.removeEventListener('mouseup', onMouseUp)
       canvas.removeEventListener('mouseleave', onMouseUp)
     }
-  }, [canvasRef, dragging, decks, looseCards, startDrag, moveDeck, moveCard, endDrag, drawFromDeck])
+  }, [canvasRef, dragging, decks, looseCards, startDrag, moveDeck, moveCard, endDrag, drawFromDeck, addCardToDeck])
 
   return hoverTargetRef
 }

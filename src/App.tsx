@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback, useState } from 'react'
 import { useTableStore } from './store/tableStore.js'
 import { drawDeck, drawLooseCard } from './cards/render.js'
 import { createStandardDeck } from './cards/decks.js'
@@ -56,6 +56,19 @@ function App() {
     return null
   }, [])
 
+  // Hit-test: find loose card at canvas position
+  const findCardAt = useCallback((cx: number, cy: number) => {
+    const cards = useTableStore.getState().looseCards
+    for (let i = cards.length - 1; i >= 0; i--) {
+      const c = cards[i]!
+      if (cx >= c.position.x && cx <= c.position.x + CARD_W &&
+          cy >= c.position.y && cy <= c.position.y + CARD_H) {
+        return c
+      }
+    }
+    return null
+  }, [])
+
   // Double-click handler: shuffle deck
   const handleDoubleClick = useCallback((e: MouseEvent) => {
     const canvas = canvasRef.current
@@ -79,20 +92,22 @@ function App() {
     const cx = e.clientX - rect.left
     const cy = e.clientY - rect.top
 
-    // Find deck at position for context menu
-    const decks = useTableStore.getState().decks
-    let deckId: string | null = null
-    for (let i = decks.length - 1; i >= 0; i--) {
-      const d = decks[i]!
-      if (cx >= d.position.x && cx <= d.position.x + CARD_W &&
-          cy >= d.position.y && cy <= d.position.y + CARD_H) {
-        deckId = d.id
-        break
-      }
+    // Hit-test loose cards first (they render on top)
+    const card = findCardAt(cx, cy)
+    if (card) {
+      openContextMenu({ x: e.clientX, y: e.clientY }, null, card.id)
+      return
     }
 
-    openContextMenu({ x: e.clientX, y: e.clientY }, deckId)
-  }, [openContextMenu])
+    // Then hit-test decks
+    const deck = findDeckAt(cx, cy)
+    if (deck) {
+      openContextMenu({ x: e.clientX, y: e.clientY }, deck.id, null)
+      return
+    }
+
+    // Clicked on empty space — no context menu
+  }, [openContextMenu, findCardAt, findDeckAt])
 
   // Draw a drop-zone highlight
   const drawDropHighlight = useCallback((ctx: CanvasRenderingContext2D, target: { kind: string; id: string; x: number; y: number }) => {
@@ -275,7 +290,6 @@ function App() {
     }
 
     const onTouchStart = (e: TouchEvent) => {
-      // Only track single-finger long press (not during drag)
       if (e.touches.length !== 1) {
         clearLongPress()
         return
@@ -289,12 +303,28 @@ function App() {
       touchMovedRef.current = false
 
       longPressTimerRef.current = setTimeout(() => {
-        // If touch moved too much, cancel
         if (touchMovedRef.current) return
-        // If already dragging, cancel
         if (useTableStore.getState().dragging.active) return
 
-        // Find deck at touch position for context menu
+        // Hit-test loose cards first
+        const cards = useTableStore.getState().looseCards
+        let cardId: string | null = null
+        for (let i = cards.length - 1; i >= 0; i--) {
+          const c = cards[i]!
+          if (cx >= c.position.x && cx <= c.position.x + CARD_W &&
+              cy >= c.position.y && cy <= c.position.y + CARD_H) {
+            cardId = c.id
+            break
+          }
+        }
+
+        if (cardId) {
+          openContextMenu({ x: touch.clientX, y: touch.clientY }, null, cardId)
+          clearLongPress()
+          return
+        }
+
+        // Then hit-test decks
         const decks = useTableStore.getState().decks
         let deckId: string | null = null
         for (let i = decks.length - 1; i >= 0; i--) {
@@ -306,7 +336,9 @@ function App() {
           }
         }
 
-        openContextMenu({ x: touch.clientX, y: touch.clientY }, deckId)
+        if (deckId) {
+          openContextMenu({ x: touch.clientX, y: touch.clientY }, deckId, null)
+        }
         clearLongPress()
       }, LONG_PRESS_MS)
     }

@@ -9,7 +9,7 @@ function resetStore() {
     decks: [],
     looseCards: [],
     dragging: { active: false, kind: null, id: null, offset: { x: 0, y: 0 } },
-    contextMenu: { open: false, canvasPos: { x: 0, y: 0 }, deckId: null },
+    contextMenu: { open: false, canvasPos: { x: 0, y: 0 }, deckId: null, cardId: null },
   })
   localStorage.removeItem(STORAGE_KEY)
 }
@@ -536,5 +536,143 @@ describe('drawFromDeck', () => {
     // Deck is now empty — drawing again should be a no-op
     drawFromDeck(deckId, { x: 300, y: 300 })
     expect(useTableStore.getState().looseCards).toHaveLength(1)
+  })
+})
+
+describe('deleteCard', () => {
+  it('removes the loose card by ID', () => {
+    const deck = createStandardDeck()
+    const { addLooseCard, deleteCard } = useTableStore.getState()
+    addLooseCard(deck.cards[0])
+    addLooseCard(deck.cards[1])
+    const cardId = useTableStore.getState().looseCards[0].id
+    deleteCard(cardId)
+    const state = useTableStore.getState()
+    expect(state.looseCards).toHaveLength(1)
+    expect(state.looseCards[0].id).not.toBe(cardId)
+  })
+
+  it('does nothing when cardId does not exist', () => {
+    const deck = createStandardDeck()
+    const { addLooseCard, deleteCard } = useTableStore.getState()
+    addLooseCard(deck.cards[0])
+    deleteCard('nonexistent')
+    expect(useTableStore.getState().looseCards).toHaveLength(1)
+  })
+
+  it('closes the context menu if the deleted card was the target', () => {
+    const deck = createStandardDeck()
+    const { addLooseCard, openContextMenu, deleteCard } = useTableStore.getState()
+    addLooseCard(deck.cards[0])
+    const cardId = useTableStore.getState().looseCards[0].id
+    openContextMenu({ x: 200, y: 200 }, null, cardId)
+    expect(useTableStore.getState().contextMenu.open).toBe(true)
+    deleteCard(cardId)
+    expect(useTableStore.getState().contextMenu.open).toBe(false)
+  })
+
+  it('does not close the context menu if a different card was targeted', () => {
+    const deck = createStandardDeck()
+    const { addLooseCard, openContextMenu, deleteCard } = useTableStore.getState()
+    addLooseCard(deck.cards[0])
+    addLooseCard(deck.cards[1])
+    const cards = useTableStore.getState().looseCards
+    openContextMenu({ x: 200, y: 200 }, null, cards[0].id)
+    deleteCard(cards[1].id)
+    expect(useTableStore.getState().contextMenu.open).toBe(true)
+    expect(useTableStore.getState().contextMenu.cardId).toBe(cards[0].id)
+  })
+})
+
+describe('addCardToDeck', () => {
+  it('moves a loose card into the target deck', () => {
+    const deck = createStandardDeck()
+    const { addDeck, addLooseCard, addCardToDeck } = useTableStore.getState()
+    addDeck(deck, { x: 100, y: 100 })
+    const deckId = useTableStore.getState().decks[0].id
+    addLooseCard(deck.cards[0], { x: 300, y: 300 })
+    const cardId = useTableStore.getState().looseCards[0].id
+    addCardToDeck(cardId, deckId)
+    const state = useTableStore.getState()
+    expect(state.looseCards).toHaveLength(0)
+    expect(state.decks[0].deck.cards).toHaveLength(53)
+  })
+
+  it('does nothing when cardId does not exist', () => {
+    const deck = createStandardDeck()
+    const { addDeck, addCardToDeck } = useTableStore.getState()
+    addDeck(deck, { x: 100, y: 100 })
+    const deckId = useTableStore.getState().decks[0].id
+    addCardToDeck('nonexistent', deckId)
+    expect(useTableStore.getState().looseCards).toHaveLength(0)
+    expect(useTableStore.getState().decks[0].deck.cards).toHaveLength(52)
+  })
+
+  it('does nothing when deckId does not exist', () => {
+    const deck = createStandardDeck()
+    const { addLooseCard, addCardToDeck } = useTableStore.getState()
+    addLooseCard(deck.cards[0])
+    const cardId = useTableStore.getState().looseCards[0].id
+    addCardToDeck(cardId, 'nonexistent')
+    expect(useTableStore.getState().looseCards).toHaveLength(1)
+  })
+
+  it('closes the context menu after adding', () => {
+    const deck = createStandardDeck()
+    const { addDeck, addLooseCard, openContextMenu, addCardToDeck } = useTableStore.getState()
+    addDeck(deck, { x: 100, y: 100 })
+    const deckId = useTableStore.getState().decks[0].id
+    addLooseCard(deck.cards[0])
+    const cardId = useTableStore.getState().looseCards[0].id
+    openContextMenu({ x: 200, y: 200 }, null, cardId)
+    addCardToDeck(cardId, deckId)
+    expect(useTableStore.getState().contextMenu.open).toBe(false)
+  })
+
+  it('can add a card to any deck by ID', () => {
+    const { addDeck, addLooseCard, addCardToDeck } = useTableStore.getState()
+    addDeck(createStandardDeck(), { x: 100, y: 100 })
+    addDeck({ name: 'receiver', cards: [] }, { x: 500, y: 500 })
+    const decks = useTableStore.getState().decks
+    const receiverId = decks[1].id
+    addLooseCard(createStandardDeck().cards[0])
+    const cardId = useTableStore.getState().looseCards[0].id
+    addCardToDeck(cardId, receiverId)
+    const state = useTableStore.getState()
+    expect(state.looseCards).toHaveLength(0)
+    expect(state.decks[1].deck.cards).toHaveLength(1)
+    expect(state.decks[0].deck.cards).toHaveLength(52)
+  })
+})
+
+describe('context menu with cardId', () => {
+  it('openContextMenu with cardId', () => {
+    useTableStore.getState().openContextMenu({ x: 100, y: 200 }, null, 'card_5')
+    const { contextMenu } = useTableStore.getState()
+    expect(contextMenu.open).toBe(true)
+    expect(contextMenu.canvasPos).toEqual({ x: 100, y: 200 })
+    expect(contextMenu.deckId).toBeNull()
+    expect(contextMenu.cardId).toBe('card_5')
+  })
+
+  it('openContextMenu with both deckId and cardId (card takes priority in UI)', () => {
+    useTableStore.getState().openContextMenu({ x: 50, y: 60 }, 'deck_1', 'card_2')
+    const { contextMenu } = useTableStore.getState()
+    expect(contextMenu.deckId).toBe('deck_1')
+    expect(contextMenu.cardId).toBe('card_2')
+  })
+
+  it('openContextMenu without cardId defaults to null', () => {
+    useTableStore.getState().openContextMenu({ x: 50, y: 60 }, 'deck_1')
+    const { contextMenu } = useTableStore.getState()
+    expect(contextMenu.cardId).toBeNull()
+  })
+
+  it('closeContextMenu resets cardId to null', () => {
+    const { openContextMenu, closeContextMenu } = useTableStore.getState()
+    openContextMenu({ x: 100, y: 200 }, null, 'card_1')
+    closeContextMenu()
+    const { contextMenu } = useTableStore.getState()
+    expect(contextMenu.cardId).toBeNull()
   })
 })
