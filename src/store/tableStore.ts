@@ -246,7 +246,53 @@ export const useTableStore = create<TableState>()(
               decks: [...state.decks, newDeck],
               contextMenu: DEFAULT_CONTEXT_MENU,
             }
+          })
+        },
+
+        flipDeck: (deckId) =>
+          set((state) => ({
+            decks: state.decks.map((d) =>
+              d.id === deckId ? { ...d, faceUp: !d.faceUp } : d,
+            ),
+          })),
+
+        flipCard: (cardId) =>
+          set((state) => ({
+            looseCards: state.looseCards.map((c) =>
+              c.id === cardId ? { ...c, faceUp: !c.faceUp } : c,
+            ),
+          })),
+
+        shuffleDeck: (deckId) =>
+          set((state) => {
+            const deck = state.decks.find((d) => d.id === deckId)
+            if (!deck) return state
+            const cards = [...deck.deck.cards]
+            // Fisher-Yates shuffle
+            for (let i = cards.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [cards[i], cards[j]] = [cards[j], cards[i]]
+            }
+            return {
+              decks: state.decks.map((d) =>
+                d.id === deckId
+                  ? { ...d, deck: { ...d.deck, cards } }
+                  : d,
+              ),
+            }
           }),
+
+        startShuffleAnim: (deckId, cardCount) =>
+          set({
+            shuffleAnim: {
+              deckId,
+              cardCount,
+              startTime: Date.now(),
+              duration: 600,
+            },
+          }),
+
+        clearShuffleAnim: () => set({ shuffleAnim: null }),
       }),
       {
         name: STORAGE_KEY,

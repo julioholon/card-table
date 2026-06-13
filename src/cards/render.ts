@@ -57,17 +57,20 @@ function drawCardBack(
   ctx: CanvasRenderingContext2D,
   x: number, y: number,
 ) {
-  // Card body — deep navy with subtle gradient
+  // Card body — rich dark gradient with slight warm shift toward center
   drawRoundRect(ctx, x, y, CARD_W, CARD_H, RADIUS)
-  const bgGrad = ctx.createLinearGradient(x, y, x + CARD_W, y + CARD_H)
-  bgGrad.addColorStop(0, '#16162a')
-  bgGrad.addColorStop(0.5, '#1a1a2e')
-  bgGrad.addColorStop(1, '#1e1e36')
+  const bgGrad = ctx.createRadialGradient(
+    x + CARD_W / 2, y + CARD_H / 2, 10,
+    x + CARD_W / 2, y + CARD_H / 2, CARD_W * 0.7,
+  )
+  bgGrad.addColorStop(0, '#1c1c34')
+  bgGrad.addColorStop(0.6, '#1a1a2e')
+  bgGrad.addColorStop(1, '#15152a')
   ctx.fillStyle = bgGrad
   ctx.fill()
 
-  // Outer border — subtle metallic
-  ctx.strokeStyle = '#3a3a5c'
+  // Outer border — subtle metallic sheen
+  ctx.strokeStyle = '#3e3e62'
   ctx.lineWidth = 1.5
   ctx.stroke()
 
@@ -76,21 +79,51 @@ function drawCardBack(
   const innerW = CARD_W - inset * 2
   const innerH = CARD_H - inset * 2
   drawRoundRect(ctx, x + inset, y + inset, innerW, innerH, RADIUS - 2)
-  ctx.strokeStyle = '#4a4a6a'
+  ctx.strokeStyle = '#4e4e72'
   ctx.lineWidth = 1
   ctx.stroke()
 
   // Second inner line for double-border effect
   const inset2 = 11
   drawRoundRect(ctx, x + inset2, y + inset2, CARD_W - inset2 * 2, CARD_H - inset2 * 2, RADIUS - 4)
-  ctx.strokeStyle = '#38385a'
+  ctx.strokeStyle = '#3a3a5e'
   ctx.lineWidth = 0.6
   ctx.stroke()
 
-  // Diamond grid pattern — two-tone for depth
-  const stepX = 16
-  const stepY = 16
-  const patternInset = inset2 + 4
+  // Corner accents — small diagonal ticks at each corner inside the frame
+  const cornerInset = inset2 + 3
+  const cornerLen = 6
+  ctx.strokeStyle = '#4a4a6e'
+  ctx.lineWidth = 1
+  // Top-left
+  ctx.beginPath()
+  ctx.moveTo(x + cornerInset, y + cornerInset + cornerLen)
+  ctx.lineTo(x + cornerInset, y + cornerInset)
+  ctx.lineTo(x + cornerInset + cornerLen, y + cornerInset)
+  ctx.stroke()
+  // Top-right
+  ctx.beginPath()
+  ctx.moveTo(x + CARD_W - cornerInset - cornerLen, y + cornerInset)
+  ctx.lineTo(x + CARD_W - cornerInset, y + cornerInset)
+  ctx.lineTo(x + CARD_W - cornerInset, y + cornerInset + cornerLen)
+  ctx.stroke()
+  // Bottom-left
+  ctx.beginPath()
+  ctx.moveTo(x + cornerInset, y + CARD_H - cornerInset - cornerLen)
+  ctx.lineTo(x + cornerInset, y + CARD_H - cornerInset)
+  ctx.lineTo(x + cornerInset + cornerLen, y + CARD_H - cornerInset)
+  ctx.stroke()
+  // Bottom-right
+  ctx.beginPath()
+  ctx.moveTo(x + CARD_W - cornerInset - cornerLen, y + CARD_H - cornerInset)
+  ctx.lineTo(x + CARD_W - cornerInset, y + CARD_H - cornerInset)
+  ctx.lineTo(x + CARD_W - cornerInset, y + CARD_H - cornerInset - cornerLen)
+  ctx.stroke()
+
+  // Diamond grid pattern — refined: filled + stroked for richer texture
+  const stepX = 14
+  const stepY = 14
+  const patternInset = inset2 + 6
   const patternW = CARD_W - patternInset * 2
   const patternH = CARD_H - patternInset * 2
   const cols = Math.floor(patternW / stepX)
@@ -102,13 +135,23 @@ function drawCardBack(
     for (let col = 0; col < cols; col++) {
       const cx = startX + col * stepX + stepX / 2
       const cy = startY + row * stepY + stepY / 2
-      const half = 4.5
+      const half = 4
 
-      // Alternate between two shades for subtle checkerboard depth
       const isLight = (row + col) % 2 === 0
-      ctx.strokeStyle = isLight ? '#2e2e52' : '#262648'
-      ctx.lineWidth = 0.7
 
+      // Filled diamond for subtle texture
+      ctx.fillStyle = isLight ? 'rgba(50, 50, 90, 0.15)' : 'rgba(36, 36, 72, 0.12)'
+      ctx.beginPath()
+      ctx.moveTo(cx, cy - half)
+      ctx.lineTo(cx + half, cy)
+      ctx.lineTo(cx, cy + half)
+      ctx.lineTo(cx - half, cy)
+      ctx.closePath()
+      ctx.fill()
+
+      // Stroked diamond for definition
+      ctx.strokeStyle = isLight ? '#2e2e55' : '#28284a'
+      ctx.lineWidth = 0.6
       ctx.beginPath()
       ctx.moveTo(cx, cy - half)
       ctx.lineTo(cx + half, cy)
@@ -119,24 +162,54 @@ function drawCardBack(
     }
   }
 
-  // Central ornament — subtle diamond wreath
+  // Central ornament — concentric diamonds with fine detail
   const cx = x + CARD_W / 2
   const cy = y + CARD_H / 2
-  ctx.strokeStyle = '#3a3a62'
-  ctx.lineWidth = 0.8
-  const ornamentR = 14
+
+  // Outer diamond
+  ctx.strokeStyle = '#3e3e68'
+  ctx.lineWidth = 0.9
+  const outerR = 16
   ctx.beginPath()
-  ctx.moveTo(cx, cy - ornamentR)
-  ctx.lineTo(cx + ornamentR, cy)
-  ctx.lineTo(cx, cy + ornamentR)
-  ctx.lineTo(cx - ornamentR, cy)
+  ctx.moveTo(cx, cy - outerR)
+  ctx.lineTo(cx + outerR, cy)
+  ctx.lineTo(cx, cy + outerR)
+  ctx.lineTo(cx - outerR, cy)
   ctx.closePath()
   ctx.stroke()
 
-  // Inner dot
-  ctx.fillStyle = '#4a4a6a'
+  // Middle diamond
+  ctx.strokeStyle = '#4a4a72'
+  ctx.lineWidth = 0.7
+  const midR = 10
   ctx.beginPath()
-  ctx.arc(cx, cy, 2, 0, Math.PI * 2)
+  ctx.moveTo(cx, cy - midR)
+  ctx.lineTo(cx + midR, cy)
+  ctx.lineTo(cx, cy + midR)
+  ctx.lineTo(cx - midR, cy)
+  ctx.closePath()
+  ctx.stroke()
+
+  // Inner diamond
+  ctx.strokeStyle = '#555580'
+  ctx.lineWidth = 0.6
+  const innerR = 5
+  ctx.beginPath()
+  ctx.moveTo(cx, cy - innerR)
+  ctx.lineTo(cx + innerR, cy)
+  ctx.lineTo(cx, cy + innerR)
+  ctx.lineTo(cx - innerR, cy)
+  ctx.closePath()
+  ctx.stroke()
+
+  // Center dot with glow
+  ctx.fillStyle = '#6a6a90'
+  ctx.beginPath()
+  ctx.arc(cx, cy, 1.8, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = 'rgba(106, 106, 144, 0.25)'
+  ctx.beginPath()
+  ctx.arc(cx, cy, 4, 0, Math.PI * 2)
   ctx.fill()
 }
 
@@ -378,5 +451,6 @@ export function drawLooseCard(
   ctx: CanvasRenderingContext2D,
   lc: LooseCard,
 ) {
-  drawCard(ctx, lc.card, lc.position.x, lc.position.y, lc.faceUp)
+  const flipProgress = getProgress(lc.id)
+  drawCardWithFlip(ctx, lc.card, lc.position.x, lc.position.y, lc.faceUp, flipProgress)
 }
