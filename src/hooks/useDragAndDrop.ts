@@ -102,11 +102,11 @@ export function useDragAndDrop(canvasRef: React.RefObject<HTMLCanvasElement | nu
   const looseCardsRef = useRef(looseCards)
   looseCardsRef.current = looseCards
 
-  const beginDrag = useCallback((x: number, y: number, isShift: boolean) => {
+  const beginDrag = useCallback((x: number, y: number, isCtrlOrMeta: boolean) => {
     const target = hitTest(decksRef.current, looseCardsRef.current, x, y)
     if (!target) return false
 
-    if (target.kind === 'deck' && isShift) {
+    if (target.kind === 'deck' && isCtrlOrMeta) {
       const d = decksRef.current.find((d) => d.id === target.id)
       if (!d) return false
       if (d.deck.cards.length === 0) return false
@@ -169,7 +169,7 @@ export function useDragAndDrop(canvasRef: React.RefObject<HTMLCanvasElement | nu
 
     const onMouseDown = (e: MouseEvent) => {
       const { x, y } = getEventPos(canvas, e)
-      beginDrag(x, y, e.shiftKey)
+      beginDrag(x, y, e.ctrlKey || e.metaKey)
     }
 
     const onMouseMove = (e: MouseEvent) => {

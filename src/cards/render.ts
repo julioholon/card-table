@@ -24,8 +24,8 @@ const SUIT_SYMBOLS: Record<string, string> = {
 const SUIT_COLORS: Record<string, string> = {
   hearts:   '#e74c3c',
   diamonds: '#e74c3c',
-  clubs:    '#e2e8f0',
-  spades:   '#e2e8f0',
+  clubs:    '#1a1a1a',
+  spades:   '#1a1a1a',
 }
 
 const TAROT_SUIT_SYMBOLS: Record<string, string> = {
@@ -369,8 +369,9 @@ export function drawCardWithFlip(
 ) {
   if (flipProgress !== null) {
     // Animate: scaleX goes from 1 → 0 → 1, face flips at midpoint
-    const scaleX = Math.cos(flipProgress * Math.PI)
-    const showingFace = scaleX >= 0 ? faceUp : !faceUp
+    const progressAngle = flipProgress * Math.PI
+    const scaleX = Math.abs(Math.cos(progressAngle))
+    const showingFace = flipProgress < 0.5 ? faceUp : !faceUp
 
     ctx.save()
     ctx.translate(x + CARD_W / 2, y + CARD_H / 2)

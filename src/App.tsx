@@ -251,18 +251,7 @@ function App() {
         }
       }
 
-      // Hit-test decks (top card area, reverse order)
-      for (let i = state.decks.length - 1; i >= 0; i--) {
-        const deck = state.decks[i]!
-        const pos = deck.position
-        if (mx >= pos.x && mx <= pos.x + CARD_W &&
-            my >= pos.y && my <= pos.y + CARD_H) {
-          startFlip(deck.id, !deck.faceUp)
-          flipDeck(deck.id)
-          ensureAnimating()
-          return
-        }
-      }
+      // Clicking on a deck does nothing (decks are manipulated via drag/drop or context menu)
     }
 
     canvas.addEventListener('click', handleClick)
