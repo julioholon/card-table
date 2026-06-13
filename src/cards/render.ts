@@ -4,11 +4,9 @@
 //   • Face-up: suit symbol + rank in corner + centred label
 //   • Face-back: geometric diamond pattern
 //   • Decks: stacked offset cards (top card face-up or all face-back)
-//   • Shuffle animation: cards scatter outward then reform into stack
 
 import type { Card, StandardCard, TarotCard } from './types.js'
 import type { PlacedDeck, LooseCard, Position } from '../store/tableStore.js'
-import type { ShuffleAnimation } from '../store/tableStore.js'
 
 // ── Constants ────────────────────────────────────────────────────────
 const CARD_W = 120
@@ -52,25 +50,6 @@ function drawRoundRect(
   ctx.lineTo(x, y + r)
   ctx.quadraticCurveTo(x, y, x + r, y)
   ctx.closePath()
-}
-
-// ── Easing: smooth scatter ↔ reform ─────────────────────────────────
-// t goes 0→1 over the animation duration.
-// Phase 1 (0→0.5): scatter outward. Phase 2 (0.5→1): reform.
-function shuffleEase(t: number): number {
-  // t=0 → 0, t=0.5 → 1, t=1 → 0  (triangle wave, smooth)
-  if (t < 0.5) {
-    // ease-in-out for scatter
-    return 2 * t * t  // quadratic ease-in for first quarter
-  }
-  // Actually let's use a proper ease-in-out triangle:
-  // 0→0.5: 2t², 0.5→1: 1 - 2(t-0.5)²  ... no.
-  // Simple approach: 0→0.5 maps to 0→1, 0.5→1 maps to 1→0
-  const phase = t < 0.5 ? t * 2 : 2 - t * 2
-  // ease-in-out cubic
-  return phase < 0.5
-    ? 4 * phase * phase * phase
-    : 1 - Math.pow(-2 * phase + 2, 3) / 2
 }
 
 // ── Face-back (geometric pattern) ────────────────────────────────────
@@ -260,79 +239,15 @@ export function drawCard(
   }
 }
 
-// ── Shuffle animation: compute scattered position for each card ─────
-function scatteredPosition(
-  index: number,
-  total: number,
-  deckX: number,
-  deckY: number,
-  progress: number,   // 0→1, how far into scatter/reform
-): Position {
-  // Each card gets a deterministic but different scatter angle
-  const angle = (index / total) * Math.PI * 2 + index * 0.7
-  const maxRadius = 80 + total * 2  // bigger decks scatter further
-  const radius = maxRadius * progress
-
-  return {
-    x: deckX + Math.cos(angle) * radius,
-    y: deckY + Math.sin(angle) * radius,
-  }
-}
-
 // ── Public: draw a placed deck (stacked cards) ───────────────────────
 export function drawDeck(
   ctx: CanvasRenderingContext2D,
   deck: PlacedDeck,
-  shuffleAnim: ShuffleAnimation | null,
 ) {
   const { position, faceUp, deck: deckObj } = deck
   const count = deckObj.cards.length
 
-  // Check if this deck is being shuffled
-  const isShuffling = shuffleAnim !== null && shuffleAnim.deckId === deck.id
-
-  if (isShuffling) {
-    // Compute animation progress
-    const elapsed = Date.now() - shuffleAnim.startTime
-    const rawT = Math.min(elapsed / shuffleAnim.duration, 1)
-    // Triangle wave: 0→1 in first half, 1→0 in second half
-    const scatterAmount = rawT < 0.5
-      ? rawT * 2
-      : 2 - rawT * 2
-    // Apply easing
-    const eased = scatterAmount < 0.5
-      ? 2 * scatterAmount * scatterAmount
-      : 1 - Math.pow(-2 * scatterAmount + 2, 2) / 2
-
-    // Draw each card at its scattered position
-    for (let i = 0; i < count; i++) {
-      const pos = scatteredPosition(i, count, position.x, position.y, eased)
-      // During scatter, cards are face-back
-      drawCardBack(ctx, pos.x, pos.y)
-    }
-
-    // Draw count badge
-    if (count > 1) {
-      const badgeX = position.x + CARD_W + 4
-      const badgeY = position.y + CARD_H - 20
-      ctx.globalAlpha = 0.5
-      ctx.fillStyle = '#21262d'
-      ctx.strokeStyle = '#30363d'
-      ctx.lineWidth = 1
-      drawRoundRect(ctx, badgeX, badgeY, 28, 18, 4)
-      ctx.fill()
-      ctx.stroke()
-      ctx.fillStyle = '#c9d1d9'
-      ctx.font = 'bold 10px system-ui, sans-serif'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(`${count}`, badgeX + 14, badgeY + 9)
-      ctx.globalAlpha = 1
-    }
-    return
-  }
-
-  // Normal stack drawing
+  // Draw stack effect: offset cards from bottom to top
   const maxVisible = Math.min(count, 12) // cap visible stack height
   const offsetStep = 3
 
